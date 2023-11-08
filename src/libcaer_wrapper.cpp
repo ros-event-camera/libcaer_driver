@@ -30,7 +30,6 @@ static rclcpp::Logger logger() { return (rclcpp::get_logger("driver")); }
 
 namespace libcaer_driver
 {
-
 LibcaerWrapper::LibcaerWrapper() { lastPrintTime_ = std::chrono::system_clock::now(); }
 
 LibcaerWrapper::~LibcaerWrapper()
