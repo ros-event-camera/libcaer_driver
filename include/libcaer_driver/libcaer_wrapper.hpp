@@ -42,6 +42,7 @@ public:
     size_t bytesSent{0};
     size_t bytesRecv{0};
     size_t maxQueueSize{0};
+    size_t eventsRecv{0};
   };
 
   LibcaerWrapper();
@@ -61,6 +62,7 @@ public:
     std::unique_lock<std::mutex> lock(statsMutex_);
     stats_.bytesSent += inc;
   }
+
   bool startSensor();
   void stopSensor();
   int getWidth() const { return (width_); }
@@ -103,9 +105,13 @@ private:
   std::atomic_bool keepProcessingRunning_{false};
   // free functions:
 public:
-  static void convert_to_mono(
-    uint8_t * mono, uint64_t timeBase, const libcaer::events::PolarityEventPacket & packet);
-  static const size_t BYTES_PER_ENCODED_EVENT = 8;
+  // Utility functions for converting libcaer data to ROS format
+  static size_t convert_to_mono(
+    std::vector<uint8_t> * mono, uint64_t timeBase,
+    const libcaer::events::PolarityEventPacket & packet);
+  static void frame_to_ros_msg(
+    const libcaer::events::FrameEventPacket & packet, std::string * encoding,
+    std::vector<uint8_t> * out, uint32_t * width, uint32_t * height, uint32_t * step);
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__LIBCAER_WRAPPER_HPP_

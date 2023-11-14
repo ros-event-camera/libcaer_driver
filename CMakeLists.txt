@@ -33,13 +33,17 @@ find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(event_camera_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(camera_info_manager)
+find_package(image_transport)
+find_package(sensor_msgs)
 find_package(libcaer REQUIRED)
 
 #
 # --------- driver (composable component) -------------
 
 add_library(driver SHARED  src/libcaer_wrapper.cpp  src/driver.cpp)
-ament_target_dependencies(driver rclcpp rclcpp_components event_camera_msgs std_srvs)
+ament_target_dependencies(driver rclcpp rclcpp_components
+  event_camera_msgs std_srvs camera_info_manager image_transport sensor_msgs)
 target_include_directories(driver PUBLIC include)
 target_link_libraries(driver libcaer::caer)
 

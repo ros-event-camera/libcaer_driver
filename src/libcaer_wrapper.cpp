@@ -15,6 +15,7 @@
 
 #include <chrono>
 #include <libcaer_driver/libcaer_wrapper.hpp>
+#include <libcaer_driver/resize_hack.hpp>
 #include <libcaercpp/devices/device_discover.hpp>
 #include <map>
 #include <rclcpp/rclcpp.hpp>
@@ -35,16 +36,60 @@ static std::map<std::string, int> devices = {
 
 static rclcpp::Logger logger() { return (rclcpp::get_logger("driver")); }
 
-void LibcaerWrapper::convert_to_mono(
-  uint8_t * mono, uint64_t timeBase, const libcaer::events::PolarityEventPacket & packet)
+size_t LibcaerWrapper::convert_to_mono(
+  std::vector<uint8_t> * data, uint64_t timeBase,
+  const libcaer::events::PolarityEventPacket & packet)
 {
-  uint64_t * p = reinterpret_cast<uint64_t *>(mono);
+  const size_t BYTES_PER_ENCODED_EVENT = 8;
+  const size_t n = packet.getEventNumber() * BYTES_PER_ENCODED_EVENT;
+  const size_t oldSize = data->size();
+  resize_hack(*data, oldSize + n);
+
+  uint64_t * p = reinterpret_cast<uint64_t *>(data->data());
   for (int32_t i = 0; i < packet.getEventNumber(); i++, p++) {
     const auto & e = packet[i];
     const auto t = e.getTimestamp64(packet);
     const uint64_t dt = t - timeBase;
     *p = static_cast<uint64_t>(e.getPolarity()) << 63 | static_cast<uint64_t>(e.getY()) << 48 |
          static_cast<uint64_t>(e.getX()) << 32 | dt;
+  }
+  return (packet.getEventNumber());
+}
+
+void LibcaerWrapper::frame_to_ros_msg(
+  const libcaer::events::FrameEventPacket & packet, std::string * encoding,
+  std::vector<uint8_t> * out, uint32_t * width, uint32_t * height, uint32_t * step)
+{
+  const auto & frame = packet[0];  // grab first frame in packet
+  const auto nc = frame.getChannelNumber();
+  *height = frame.getLengthY();
+  *width = frame.getLengthX();
+
+  const uint16_t * data = frame.getPixelArrayUnsafe();
+  uint32_t numChan = static_cast<uint32_t>(nc);
+  switch (frame.getChannelNumber()) {
+    case libcaer::events::FrameEvent::colorChannels::GRAYSCALE:
+      *encoding = "mono8";
+      break;
+    case libcaer::events::FrameEvent::colorChannels::RGB:
+      *encoding = "rgb8";
+      break;
+    case libcaer::events::FrameEvent::colorChannels::RGBA:
+      *encoding = "rgba8";
+      break;
+    default:
+      RCLCPP_ERROR_STREAM(
+        logger(), "invalid number of channels for frame: " << static_cast<uint32_t>(nc));
+      throw(std::runtime_error("invalid number of channels for frame"));
+  }
+
+  const uint32_t stride = numChan * (*width);
+  *step = stride;
+  out->resize(stride * (*height));
+  for (uint32_t y = 0; y < (*height) * numChan; y++) {
+    for (uint32_t x = 0; x < *width; x++) {
+      (*out)[y * (*width) + x] = data[y * (*width) + x] >> 8;  // convert from 16bit to 8bit.
+    }
   }
 }
 
@@ -208,12 +253,18 @@ void LibcaerWrapper::processPacket(
   switch (packet.getEventType()) {
     case POLARITY_EVENT: {
       const auto & ppacket = static_cast<const libcaer::events::PolarityEventPacket &>(packet);
-      callbackHandler_->polarityEventCallback(nsSinceEpoch, ppacket);
+      callbackHandler_->polarityPacketCallback(nsSinceEpoch, ppacket);
       {
         std::unique_lock<std::mutex> lock(statsMutex_);
         stats_.bytesRecv += packet.getEventNumber() * sizeof(libcaer::events::PolarityEvent);
         stats_.msgsRecv++;
+        stats_.eventsRecv += ppacket.getEventNumber();
       }
+      break;
+    }
+    case FRAME_EVENT: {
+      const auto & fpacket = static_cast<const libcaer::events::FrameEventPacket &>(packet);
+      callbackHandler_->framePacketCallback(nsSinceEpoch, fpacket);
       break;
     }
     default:
@@ -260,14 +311,13 @@ void LibcaerWrapper::printStatistics()
   lastPrintTime_ = t_now;
   const double invT = dt > 0 ? 1.0 / dt : 0;
   const double recvByteRate = 1e-6 * stats_.bytesRecv * invT;
+  const double recvEventsRate = 1e-6 * stats_.eventsRecv * invT;
 
   const int recvMsgRate = static_cast<int>(stats_.msgsRecv * invT);
   const int sendMsgRate = static_cast<int>(stats_.msgsSent * invT);
 
   RCLCPP_INFO(
-    logger(),
-    "bw in: %9.5f MB/s, msgs/s in: %7d, "
-    "out: %7d",
+    logger(), "in: %9.5f Mev/s, %8.3f MB/s, %5d msgs/s, out: %5d msg/s", recvEventsRate,
     recvByteRate, recvMsgRate, sendMsgRate);
   stats_ = Stats();  // reset statistics
 }

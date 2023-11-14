@@ -16,7 +16,10 @@
 #ifndef LIBCAER_DRIVER__DRIVER_HPP_
 #define LIBCAER_DRIVER__DRIVER_HPP_
 
+#include <camera_info_manager/camera_info_manager.hpp>
 #include <event_camera_msgs/msg/event_packet.hpp>
+#include <image_transport/image_transport.hpp>
+#include <libcaercpp/events/frame.hpp>
 #include <map>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
@@ -41,8 +44,9 @@ public:
   ~Driver();
 
   // ---------------- inherited from CallbackHandler -----------
-  void polarityEventCallback(
+  void polarityPacketCallback(
     uint64_t t, const libcaer::events::PolarityEventPacket & packet) override;
+  void framePacketCallback(uint64_t t, const libcaer::events::FrameEventPacket & packet) override;
 
   // ---------------- end of inherited  -----------
 
@@ -55,13 +59,17 @@ private:
   void start();
   bool stop();
   void configureSensor();
+  template <class T>
+  T get_or(const std::string & name, const T & def)
+  {
+    T p;
+    (void)get_parameter_or(name, p, def);
+    return (p);
+  }
 
   // ------------------------  variables ------------------------------
   std::shared_ptr<LibcaerWrapper> wrapper_;
-  int width_;   // image width
-  int height_;  // image height
   bool isBigEndian_;
-  std::string frameId_;
   uint64_t seq_{0};        // sequence number
   size_t reserveSize_{0};  // recommended reserve size
   uint64_t lastMessageTime_{0};
@@ -73,6 +81,10 @@ private:
   rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr callbackHandle_;
   std::shared_ptr<rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent, std::allocator<void>>>
     parameterSubscription_;
+  std::shared_ptr<camera_info_manager::CameraInfoManager> infoManager_;
+  image_transport::CameraPublisher cameraPub_;
+  sensor_msgs::msg::Image imageMsg_;
+  sensor_msgs::msg::CameraInfo cameraInfoMsg_;
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__DRIVER_HPP_

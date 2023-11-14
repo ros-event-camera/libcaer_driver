@@ -16,6 +16,7 @@
 #ifndef LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_
 #define LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_
 
+#include <libcaercpp/events/frame.hpp>
 #include <libcaercpp/events/polarity.hpp>
 
 namespace libcaer_driver
@@ -25,8 +26,10 @@ class CallbackHandler
 public:
   CallbackHandler() {}
   virtual ~CallbackHandler() {}
-  virtual void polarityEventCallback(
+  virtual void polarityPacketCallback(
     uint64_t t, const libcaer::events::PolarityEventPacket & packet) = 0;
+  virtual void framePacketCallback(
+    uint64_t t, const libcaer::events::FrameEventPacket & packet) = 0;
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_
