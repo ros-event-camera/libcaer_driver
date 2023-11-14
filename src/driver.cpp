@@ -52,6 +52,7 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   get_parameter_or("device_id", deviceId, 1);
   try {
     wrapper_.reset(new LibcaerWrapper());
+    wrapper_->setCallbackHandler(this);
     wrapper_->initialize(deviceType, deviceId, serial);
   } catch (std::exception & e) {
     RCLCPP_ERROR_STREAM(get_logger(), "sensor initialization failed: " << e.what());
@@ -94,15 +95,16 @@ void Driver::start()
     frameId_ = wrapper_->getSerialNumber();
   }
 
-  RCLCPP_INFO_STREAM(get_logger(), "using frame id: " << frameId_);
-
   // ------ get other parameters from camera
   width_ = wrapper_->getWidth();
   height_ = wrapper_->getHeight();
   isBigEndian_ = check_endian::isBigEndian();
 
+  RCLCPP_INFO_STREAM(
+    get_logger(), "res: " << width_ << " x " << height_ << " using frame id: " << frameId_);
+
   // ------ start camera, may get callbacks from then on
-  (void)wrapper_->startSensor();
+  wrapper_->startSensor();
 
   callbackHandle_ = this->add_on_set_parameters_callback(
     std::bind(&Driver::parameterChanged, this, std::placeholders::_1));
@@ -113,21 +115,23 @@ void Driver::start()
 
 bool Driver::stop()
 {
+  RCLCPP_INFO(get_logger(), "driver stopping sensor");
   if (wrapper_) {
-    return (wrapper_->stopSensor());
+    wrapper_->stopSensor();
+    return (true);
   }
   return false;
 }
 
 void Driver::configureSensor() {}
 
-void Driver::rawDataCallback(uint64_t t, const uint8_t * start, const uint8_t * end)
+void Driver::polarityEventCallback(uint64_t t, const libcaer::events::PolarityEventPacket & packet)
 {
   if (eventPub_->get_subscription_count() > 0) {
     if (!msg_) {
       msg_.reset(new EventPacketMsg());
       msg_->header.frame_id = frameId_;
-      msg_->time_base = 0;  // not used here
+      msg_->time_base = packet[0].getTimestamp64(packet);
       msg_->encoding = "mono";
       msg_->seq = seq_++;
       msg_->width = width_;
@@ -135,12 +139,12 @@ void Driver::rawDataCallback(uint64_t t, const uint8_t * start, const uint8_t * 
       msg_->header.stamp = rclcpp::Time(t, RCL_SYSTEM_TIME);
       msg_->events.reserve(reserveSize_);
     }
-    const size_t n = end - start;
+    const size_t n = packet.getEventNumber() * LibcaerWrapper::BYTES_PER_ENCODED_EVENT;
     auto & events = msg_->events;
     const size_t oldSize = events.size();
     resize_hack(events, oldSize + n);
-    memcpy(reinterpret_cast<void *>(events.data() + oldSize), start, n);
 
+    LibcaerWrapper::convert_to_mono(events.data() + oldSize, msg_->time_base, packet);
     if (t - lastMessageTime_ > messageThresholdTime_ || events.size() > messageThresholdSize_) {
       reserveSize_ = std::max(reserveSize_, events.size());
       eventPub_->publish(std::move(msg_));
@@ -149,7 +153,7 @@ void Driver::rawDataCallback(uint64_t t, const uint8_t * start, const uint8_t * 
       wrapper_->updateMsgsSent(1);
     }
   } else {
-    if (msg_) {
+    if (!msg_) {
       msg_.reset();
     }
   }

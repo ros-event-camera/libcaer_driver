@@ -48,6 +48,8 @@ public:
   ~LibcaerWrapper();
 
   void initialize(const std::string & deviceType, int deviceId, const std::string & restrictSerial);
+  void setCallbackHandler(CallbackHandler * cb) { callbackHandler_ = cb; }
+  void setEventBuffer(std::vector<uint8_t> * buf) { eventBuffer_ = buf; }
 
   inline void updateMsgsSent(int inc)
   {
@@ -60,24 +62,27 @@ public:
     stats_.bytesSent += inc;
   }
   bool startSensor();
-  bool stopSensor();
+  void stopSensor();
   int getWidth() const { return (width_); }
   int getHeight() const { return (height_); }
   const std::string & getSerialNumber() const { return (serialNumber_); }
 
   void setDeviceType(const std::string & devType) { deviceType_ = devType; }
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
+  void deviceDisconnected();
 
 private:
   void processingThread();
   void statsThread();
   void printStatistics();
   void initializeSensor();
-  void startThreads();
-  void stopThreads();
+  void startProcessingThread();
+  void stopProcessingThread();
+  void processPacket(uint64_t nsSinceEpoch, const libcaer::events::EventPacket & packet);
 
   // ------------ variables
-  CallbackHandler * callbackHandler_{0};
+  CallbackHandler * callbackHandler_{nullptr};
+  std::vector<uint8_t> * eventBuffer_;
   int width_{0};   // image width
   int height_{0};  // image height
   std::string restrictSN_;
@@ -89,10 +94,18 @@ private:
   std::chrono::time_point<std::chrono::system_clock> lastPrintTime_;
   Stats stats_;
   std::mutex statsMutex_;
+  std::condition_variable statsCv_;
   std::shared_ptr<std::thread> statsThread_;
   std::shared_ptr<std::thread> processingThread_;
   std::unique_ptr<libcaer::devices::device> device_;
-  std::atomic_bool keepRunning_{true};
+  bool deviceRunning_{false};
+  std::atomic_bool keepStatsRunning_{false};
+  std::atomic_bool keepProcessingRunning_{false};
+  // free functions:
+public:
+  static void convert_to_mono(
+    uint8_t * mono, uint64_t timeBase, const libcaer::events::PolarityEventPacket & packet);
+  static const size_t BYTES_PER_ENCODED_EVENT = 8;
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__LIBCAER_WRAPPER_HPP_

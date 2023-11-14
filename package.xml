@@ -16,7 +16,7 @@
   <depend>rclcpp_components</depend>
   <depend>event_camera_msgs</depend>
   <depend>std_srvs</depend>
-  <depend>libusb-1.0-dev</depend>
+  <depend>libcaer</depend>
   
   <test_depend>ament_cmake_copyright</test_depend>
   <test_depend>ament_cmake_cppcheck</test_depend>

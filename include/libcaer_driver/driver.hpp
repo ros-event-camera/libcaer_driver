@@ -41,7 +41,9 @@ public:
   ~Driver();
 
   // ---------------- inherited from CallbackHandler -----------
-  void rawDataCallback(uint64_t t, const uint8_t * start, const uint8_t * end) override;
+  void polarityEventCallback(
+    uint64_t t, const libcaer::events::PolarityEventPacket & packet) override;
+
   // ---------------- end of inherited  -----------
 
 private:
