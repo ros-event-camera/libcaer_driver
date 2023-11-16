@@ -51,14 +51,42 @@ public:
   // ---------------- end of inherited  -----------
 
 private:
+  struct Parameter
+  {
+    enum Type { INVALID, INTEGER, DOUBLE };
+    union Value {
+      int intValue;
+      double doubleValue;
+    };
+    explicit Parameter(const std::string & n, Type t, int v, int min_v, int max_v)
+    : name(n), type(t)
+    {
+      value.intValue = v;
+      min_value.intValue = min_v;
+      max_value.intValue = max_v;
+    }
+    explicit Parameter(const std::string & n, Type t, double v, double min_v, double max_v)
+    : name(n), type(t)
+    {
+      value.doubleValue = v;
+      min_value.doubleValue = min_v;
+      max_value.doubleValue = max_v;
+    }
+    const std::string name;
+    Type type{INVALID};
+    Value value{0};
+    Value min_value{0};
+    Value max_value{0};
+  };
+
   // related to dynanmic config (runtime parameter update)
-  rcl_interfaces::msg::SetParametersResult parameterChanged(
-    const std::vector<rclcpp::Parameter> & params);
   void onParameterEvent(std::shared_ptr<const rcl_interfaces::msg::ParameterEvent> event);
   // misc helper functions
   void start();
   bool stop();
   void configureSensor();
+  void declareParameters();
+  void updateParameter(Parameter * p, const rcl_interfaces::msg::ParameterValue & rp);
   template <class T>
   T get_or(const std::string & name, const T & def)
   {
@@ -78,13 +106,13 @@ private:
   EventPacketMsg::UniquePtr msg_;
   rclcpp::Publisher<EventPacketMsg>::SharedPtr eventPub_;
   // ------ related to dynamic config and services
-  rclcpp::Node::OnSetParametersCallbackHandle::SharedPtr callbackHandle_;
-  std::shared_ptr<rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent, std::allocator<void>>>
-    parameterSubscription_;
+  rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameterSubscription_;
   std::shared_ptr<camera_info_manager::CameraInfoManager> infoManager_;
   image_transport::CameraPublisher cameraPub_;
   sensor_msgs::msg::Image imageMsg_;
   sensor_msgs::msg::CameraInfo cameraInfoMsg_;
+  using ParameterMap = std::map<std::string, Parameter>;
+  ParameterMap parameters_;
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__DRIVER_HPP_

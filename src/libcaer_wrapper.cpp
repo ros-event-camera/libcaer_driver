@@ -17,6 +17,7 @@
 #include <libcaer_driver/libcaer_wrapper.hpp>
 #include <libcaer_driver/resize_hack.hpp>
 #include <libcaercpp/devices/device_discover.hpp>
+#include <limits>
 #include <map>
 #include <rclcpp/rclcpp.hpp>
 #include <set>
@@ -25,16 +26,63 @@
 
 namespace libcaer_driver
 {
-// require free function for usb disconnect handling
+using std::chrono::duration_cast;
+using std::chrono::nanoseconds;
+using std::chrono::system_clock;
+//
+// ------------- local static functions and maps ------------
+//
+// map between the ROS configuration string and libcaer device type.
+// add new devices here, but also update the other maps!
+
+static const std::map<std::string, int> devices = {
+  {"dvxplorer", CAER_DEVICE_DVXPLORER}, {"davis", CAER_DEVICE_DAVIS}};
+//
+
+struct DeviceConfig
+{
+  DeviceConfig(int8_t biasModAddr, int8_t apsModAddr, int8_t dvsModAddr)
+  : bias(biasModAddr), aps(apsModAddr), dvs(dvsModAddr)
+  {
+  }
+  int8_t bias{0};
+  int8_t aps{0};
+  int8_t dvs{0};
+};
+
+static const std::map<int, const DeviceConfig> DEVICE_CONFIGURATIONS = {
+  {CAER_DEVICE_DAVIS, {DAVIS_CONFIG_BIAS, DAVIS_CONFIG_APS, DAVIS_CONFIG_DVS}}};
+
+constexpr ParamInfo::ParamType BIAS = ParamInfo::ParamType::BIAS;
+static const std::map<int16_t, std::map<std::string, const ParamInfo>> ALL_PARAMETERS = {
+  {CAER_DEVICE_DAVIS,
+   {
+     {"PrBp_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_PRBP, false, 2, 0, 7)},
+     {"PrBp_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_PRBP, false, 58, 0, 255)},
+     {"PrSFBP_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_PRSFBP, false, 1, 0, 7)},
+     {"PrSFBP_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_PRSFBP, false, 33, 0, 255)},
+     {"DiffBn_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_DIFFBN, true, 4, 0, 7)},
+     {"DiffBn_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_DIFFBN, true, 39, 0, 255)},
+     {"ONBn_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_ONBN, true, 6, 0, 255)},
+     {"ONBn_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_ONBN, true, 200, 0, 255)},
+     {"OFFBn_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_OFFBN, true, 4, 0, 255)},
+     {"OFFBn_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_OFFBN, true, 0, 0, 255)},
+     {"RefrBp_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_REFRBP, false, 4, 0, 255)},
+     {"RefrBp_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_REFRBP, false, 25, 0, 255)},
+   }}};  // needs 3 closing braces here
+
+// local logger handle
+static rclcpp::Logger logger() { return (rclcpp::get_logger("driver")); }
+
+// need to use free function for usb disconnect handling
 static void device_disconnected(void * ptr)
 {
   reinterpret_cast<LibcaerWrapper *>(ptr)->deviceDisconnected();
 }
 
-static std::map<std::string, int> devices = {
-  {"dvxplorer", CAER_DEVICE_DVXPLORER}, {"davis", CAER_DEVICE_DAVIS}};
-
-static rclcpp::Logger logger() { return (rclcpp::get_logger("driver")); }
+//
+// -------------- free functions  -----------------------
+//
 
 size_t LibcaerWrapper::convert_to_mono(
   std::vector<uint8_t> * data, uint64_t timeBase,
@@ -95,7 +143,7 @@ void LibcaerWrapper::frame_to_ros_msg(
 
 LibcaerWrapper::LibcaerWrapper()
 {
-  lastPrintTime_ = std::chrono::system_clock::now();
+  lastPrintTime_ = system_clock::now();
   keepProcessingRunning_.store(false);
   keepStatsRunning_.store(true);
   statsThread_ = std::make_shared<std::thread>(&LibcaerWrapper::statsThread, this);
@@ -114,15 +162,6 @@ LibcaerWrapper::~LibcaerWrapper()
     statsThread_.reset();
   }
   device_.reset();
-}
-
-void LibcaerWrapper::initialize(
-  const std::string & deviceType, int deviceId, const std::string & serial)
-{
-  deviceType_ = deviceType;
-  deviceId_ = deviceId;
-  restrictSN_ = serial;
-  initializeSensor();
 }
 
 void LibcaerWrapper::deviceDisconnected()
@@ -177,24 +216,25 @@ static std::unique_ptr<libcaer::devices::device> open_device(
   return (p);
 }
 
-void LibcaerWrapper::initializeSensor()
+void LibcaerWrapper::initialize(
+  const std::string & devType, int deviceId, const std::string & restrictSN)
 {
-  const auto dev_it = devices.find(deviceType_);
+  const auto dev_it = devices.find(devType);
   if (dev_it == devices.end()) {
-    throw(std::runtime_error("unsupported device configured: " + deviceType_));
+    throw(std::runtime_error("unsupported device configured: " + devType));
   }
+  deviceType_ = dev_it->second;
   const auto all_devices = libcaer::devices::discover::all();
   RCLCPP_INFO_STREAM(logger(), "found " << all_devices.size() << " device(s)");
 
   const int num_tries = 5;
   for (int i = 0; i < num_tries; i++) {
-    auto devices = libcaer::devices::discover::device(dev_it->second);
+    auto devices = libcaer::devices::discover::device(deviceType_);
     RCLCPP_INFO_STREAM(
-      logger(), "found " << devices.size() << " device(s) of type " << deviceType_ << "("
-                         << dev_it->second << ")");
+      logger(),
+      "found " << devices.size() << " device(s) of type " << devType << "(" << deviceType_ << ")");
     for (const auto & dev : devices) {
-      device_ =
-        open_device(logger(), deviceId_, dev, restrictSN_, &width_, &height_, &serialNumber_);
+      device_ = open_device(logger(), deviceId, dev, restrictSN, &width_, &height_, &serialNumber_);
       if (device_) {
         break;
       }
@@ -203,7 +243,7 @@ void LibcaerWrapper::initializeSensor()
       RCLCPP_ERROR_STREAM(
         logger(), "cannot open sensor on attempt " << i + 1 << ", retrying " << num_tries - i - 1
                                                    << " more times");
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      std::this_thread::sleep_for(nanoseconds(1000000000));
     } else {
       break;
     }
@@ -275,14 +315,12 @@ void LibcaerWrapper::processPacket(
 void LibcaerWrapper::processingThread()
 {
   RCLCPP_INFO(logger(), "starting processing thread!");
-  const std::chrono::microseconds timeout((int64_t)(1000000LL));
+
   while (rclcpp::ok() && keepProcessingRunning_.load(std::memory_order_relaxed)) {
     std::unique_ptr<libcaer::events::EventPacketContainer> pcp = device_->dataGet();
     if (pcp) {
-      const uint64_t nsSinceEpoch = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                      std::chrono::system_clock::now().time_since_epoch())
-                                      .count();
-      // get time
+      const uint64_t nsSinceEpoch =
+        duration_cast<nanoseconds>(system_clock::now().time_since_epoch()).count();
       for (const auto & packet : *pcp) {
         if (packet) {
           processPacket(nsSinceEpoch, *packet);
@@ -295,7 +333,7 @@ void LibcaerWrapper::processingThread()
 
 void LibcaerWrapper::statsThread()
 {
-  const auto duration = std::chrono::milliseconds(static_cast<int>(statsInterval_ * 1000));
+  const auto duration = nanoseconds(static_cast<int>(statsInterval_ * 1000000000));
   while (rclcpp::ok() && keepStatsRunning_.load()) {
     std::unique_lock<std::mutex> lock(statsMutex_);
     statsCv_.wait_for(lock, duration);
@@ -304,9 +342,80 @@ void LibcaerWrapper::statsThread()
   RCLCPP_INFO(logger(), "statistics thread exited!");
 }
 
+static uint8_t & pick(struct caer_bias_coarsefine & cfb, const std::string & name)
+{
+  if (name.find("_fine") != std::string::npos) {
+    return (cfb.fineValue);
+  } else if (name.find("_coarse") != std::string::npos) {
+    return (cfb.coarseValue);
+  }
+  RCLCPP_ERROR_STREAM(logger(), "bias has no coarse/fine: " << name);
+  throw(std::runtime_error("bias has no coarse/fine"));
+}
+
+int LibcaerWrapper::setBias(const std::string & name, const ParamInfo & p, int value)
+{
+  const auto devconfig_it = DEVICE_CONFIGURATIONS.find(deviceType_);
+  if (devconfig_it == DEVICE_CONFIGURATIONS.end()) {
+    RCLCPP_ERROR_STREAM(logger(), "no config defined for device " << deviceType_);
+    throw(std::runtime_error("no config defined for device!"));
+  }
+  // first read the current bias to get either coarse or fine value, whichever
+  // is not being set right now
+  const auto modAddr = devconfig_it->second.bias;
+  auto newBias = caerBiasCoarseFineParse(device_->configGet(modAddr, p.paramAddr));
+  const int prevValue = pick(newBias, name);
+  pick(newBias, name) = value;  // this sets the new value!
+  newBias.enabled = true;
+  newBias.sexN = p.sexN;
+  newBias.typeNormal = true;
+  newBias.currentLevelNormal = true;
+  device_->configSet(modAddr, p.paramAddr, caerBiasCoarseFineGenerate(newBias));
+  // read back one last time
+  newBias = caerBiasCoarseFineParse(device_->configGet(modAddr, p.paramAddr));
+  const int newValue = pick(newBias, name);
+  if (prevValue != newValue) {
+    RCLCPP_INFO_STREAM(logger(), name << " changed from " << prevValue << " to " << newValue);
+  } else {
+    RCLCPP_INFO_STREAM(logger(), name << " left unchanged at " << prevValue);
+  }
+  return (pick(newBias, name));
+}
+
+const std::map<std::string, const ParamInfo> & LibcaerWrapper::getParameters()
+{
+  const auto map_it = ALL_PARAMETERS.find(deviceType_);
+  if (map_it == ALL_PARAMETERS.end()) {
+    RCLCPP_ERROR_STREAM(logger(), "no parameters defined for device " << deviceType_);
+    throw(std::runtime_error("no parameters defined for device!"));
+  }
+  return (map_it->second);
+}
+
+int LibcaerWrapper::setParameter(const std::string & name, int value)
+{
+  const auto & parameters = getParameters();
+  const auto param_it = parameters.find(name);
+  if (param_it == parameters.end()) {
+    RCLCPP_ERROR_STREAM(logger(), "param " << name << "not defined for device " << deviceType_);
+    throw(std::runtime_error("param not defined for device!"));
+  }
+  const auto & p = param_it->second;
+  int actualValue{0};
+  switch (p.type) {
+    case ParamInfo::BIAS:
+      actualValue = setBias(name, p, value);
+      break;
+    default:
+      RCLCPP_ERROR_STREAM(logger(), "param " << name << "has invalid param type");
+      throw(std::runtime_error("param not defined for device!"));
+  }
+  return (actualValue);
+}
+
 void LibcaerWrapper::printStatistics()
 {
-  std::chrono::time_point<std::chrono::system_clock> t_now = std::chrono::system_clock::now();
+  std::chrono::time_point<system_clock> t_now = system_clock::now();
   const double dt = std::chrono::duration<double>(t_now - lastPrintTime_).count();
   lastPrintTime_ = t_now;
   const double invT = dt > 0 ? 1.0 / dt : 0;

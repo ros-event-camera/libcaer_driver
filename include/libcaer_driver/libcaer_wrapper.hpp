@@ -32,6 +32,21 @@
 
 namespace libcaer_driver
 {
+struct ParamInfo
+{
+  enum ParamType { BIAS, APS, DVS };
+  ParamInfo(ParamType t, uint8_t pa, bool s, uint8_t def, int32_t nV, int32_t xV)
+  : type(t), paramAddr(pa), sexN(s), defVal(def), minVal(nV), maxVal(xV)
+  {
+  }
+  ParamType type;
+  uint8_t paramAddr{0};
+  bool sexN{true};
+  int32_t defVal{0};
+  int32_t minVal{0};
+  int32_t maxVal{std::numeric_limits<int32_t>::max()};
+};
+
 class LibcaerWrapper
 {
 public:
@@ -69,15 +84,16 @@ public:
   int getHeight() const { return (height_); }
   const std::string & getSerialNumber() const { return (serialNumber_); }
 
-  void setDeviceType(const std::string & devType) { deviceType_ = devType; }
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
   void deviceDisconnected();
+  int setParameter(const std::string & name, int value);
+  const std::map<std::string, const ParamInfo> & getParameters();
 
 private:
   void processingThread();
   void statsThread();
   void printStatistics();
-  void initializeSensor();
+  int setBias(const std::string & name, const ParamInfo & p, int value);
   void startProcessingThread();
   void stopProcessingThread();
   void processPacket(uint64_t nsSinceEpoch, const libcaer::events::EventPacket & packet);
@@ -87,23 +103,23 @@ private:
   std::vector<uint8_t> * eventBuffer_;
   int width_{0};   // image width
   int height_{0};  // image height
-  std::string restrictSN_;
   std::string serialNumber_;
-  std::string deviceType_;
-  int deviceId_{0};
+  std::unique_ptr<libcaer::devices::device> device_;
+  int16_t deviceType_{0};
+  bool deviceRunning_{false};  // status of device
+  std::map<std::string, ParamInfo> biases_;
   // --  related to statistics
-  double statsInterval_{2.0};  // time between printouts
+  double statsInterval_{2.0};  // time between printouts (seconds)
   std::chrono::time_point<std::chrono::system_clock> lastPrintTime_;
   Stats stats_;
   std::mutex statsMutex_;
   std::condition_variable statsCv_;
   std::shared_ptr<std::thread> statsThread_;
-  std::shared_ptr<std::thread> processingThread_;
-  std::unique_ptr<libcaer::devices::device> device_;
-  bool deviceRunning_{false};
   std::atomic_bool keepStatsRunning_{false};
+  // -- related to processing thread
+  std::shared_ptr<std::thread> processingThread_;
   std::atomic_bool keepProcessingRunning_{false};
-  // free functions:
+
 public:
   // Utility functions for converting libcaer data to ROS format
   static size_t convert_to_mono(

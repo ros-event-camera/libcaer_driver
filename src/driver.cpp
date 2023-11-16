@@ -41,16 +41,19 @@ Driver::Driver(const rclcpp::NodeOptions & options)
     "~/events", rclcpp::QoS(rclcpp::KeepLast(get_or("send_queue_size", 1000)))
                   .best_effort()
                   .durability_volatile());
+
+  const std::string deviceType = get_or("device_type", std::string("davis"));
   try {
     wrapper_.reset(new LibcaerWrapper());
     wrapper_->setCallbackHandler(this);
-    wrapper_->initialize(
-      get_or("device_type", std::string("dvs128")), get_or("device_id", 1),
-      get_or("serial", std::string()));
+    wrapper_->initialize(deviceType, get_or("device_id", 1), get_or("serial", std::string()));
   } catch (std::exception & e) {
     RCLCPP_ERROR_STREAM(get_logger(), "sensor initialization failed: " << e.what());
     throw(e);
   }
+
+  declareParameters();
+
   isBigEndian_ = check_endian::isBigEndian();
   // ------ get other parameters from camera
   imageMsg_.width = wrapper_->getWidth();
@@ -85,16 +88,87 @@ Driver::~Driver()
   wrapper_.reset();  // invoke destructor
 }
 
-rcl_interfaces::msg::SetParametersResult Driver::parameterChanged(
-  const std::vector<rclcpp::Parameter> & params)
+void Driver::declareParameters()
 {
-  rcl_interfaces::msg::SetParametersResult res;
-  res.successful = false;
-  res.reason = "not set";
-  for (const auto & p : params) {
-    RCLCPP_INFO_STREAM(get_logger(), "parameter changed: " << p.get_name());
+  const auto & parameters = wrapper_->getParameters();
+  for (const auto & p : parameters) {
+    const auto & pi = p.second;  // parameter info
+    parameters_.insert(
+      {p.first, Parameter(p.first, Parameter::INTEGER, pi.defVal, pi.minVal, pi.maxVal)});
+    RCLCPP_INFO_STREAM(
+      get_logger(), p.first << " " << pi.defVal << " " << pi.minVal << " " << pi.maxVal);
   }
-  return (res);
+  for (auto & pi : parameters_) {
+    auto & p = pi.second;
+    if (p.type == Parameter::INTEGER) {
+      try {
+        int v(0);
+        if (has_parameter(p.name)) {
+          try {
+            v = get_parameter(p.name).as_int();
+          } catch (const rclcpp::ParameterTypeException & e) {
+            v = p.value.intValue;
+            RCLCPP_WARN_STREAM(get_logger(), "ignoring param " << p.name << " with invalid type!");
+          }
+        } else {
+          v = declare_parameter(
+            p.name, p.value.intValue, rcl_interfaces::msg::ParameterDescriptor(), false);
+        }
+        p.value.intValue = std::clamp<int>(v, p.min_value.intValue, p.max_value.intValue);
+        if (p.value.intValue != v) {
+          RCLCPP_INFO_STREAM(
+            get_logger(),
+            p.name << " outside limits, adjusted " << v << " -> " << p.value.intValue);
+          set_parameter(rclcpp::Parameter(p.name, p.value.intValue));
+        } else {
+          RCLCPP_INFO_STREAM(
+            get_logger(), "parameter " << p.name << " initialized with value " << p.value.intValue);
+        }
+      } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
+        RCLCPP_WARN_STREAM(
+          get_logger(), "overwriting bad param with default: " + std::string(e.what()));
+        declare_parameter(
+          p.name, p.value.intValue, rcl_interfaces::msg::ParameterDescriptor(), true);
+      }
+    }
+  }
+}
+
+void Driver::updateParameter(Parameter * p, const rcl_interfaces::msg::ParameterValue & rp)
+{
+  try {
+    switch (p->type) {
+      case Parameter::INTEGER: {
+        if (has_parameter(p->name)) {
+          p->value.intValue =
+            std::clamp<int>(rp.integer_value, p->min_value.intValue, p->max_value.intValue);
+          if (p->value.intValue != rp.integer_value) {
+            RCLCPP_WARN_STREAM(
+              get_logger(), p->name << ": " << rp.integer_value << " out of range, adjusted to "
+                                    << p->value.intValue);
+          }
+          // now set the parameter in ROS land
+          if (wrapper_) {
+            const int v_new = wrapper_->setParameter(p->name, p->value.intValue);
+            if (v_new != p->value.intValue) {
+              RCLCPP_WARN_STREAM(get_logger(), "libcaer adjusted " << p->name << " to " << v_new);
+              p->value.intValue = v_new;
+            }
+          }
+          if (rp.integer_value != p->value.intValue) {
+            // only communicate the parameter changes to ROS if there actually
+            // was a change, or else this triggers an infinite sequence of callbacks
+            set_parameter(rclcpp::Parameter(p->name, p->value.intValue));
+          }
+        }
+        break;
+      }
+      default:
+        throw(std::runtime_error("invalid parameter type!"));
+    }
+  } catch (const rclcpp::ParameterTypeException & e) {
+    RCLCPP_WARN_STREAM(get_logger(), "ignoring param  " << p->name << " with invalid type!");
+  }
 }
 
 void Driver::onParameterEvent(std::shared_ptr<const rcl_interfaces::msg::ParameterEvent> event)
@@ -102,7 +176,22 @@ void Driver::onParameterEvent(std::shared_ptr<const rcl_interfaces::msg::Paramet
   if (event->node != this->get_fully_qualified_name()) {
     return;
   }
+
+  std::vector<std::string> validEvents;
+  for (const auto & p : parameters_) {
+    validEvents.push_back(p.first);
+  }
+  rclcpp::ParameterEventsFilter filter(
+    event, validEvents, {rclcpp::ParameterEventsFilter::EventType::CHANGED});
+  for (auto & ev_it : filter.get_events()) {
+    const std::string & name = ev_it.second->name;
+    auto it = parameters_.find(name);
+    if (it != parameters_.end()) {
+      updateParameter(&(it->second), ev_it.second->value);
+    }
+  }
 }
+
 void Driver::start()
 {
   double printInterval;
@@ -112,11 +201,14 @@ void Driver::start()
   // ------ start camera, may get callbacks from then on
   wrapper_->startSensor();
 
-  callbackHandle_ = this->add_on_set_parameters_callback(
-    std::bind(&Driver::parameterChanged, this, std::placeholders::_1));
+#if 0
   parameterSubscription_ = rclcpp::AsyncParametersClient::on_parameter_event(
     this->get_node_topics_interface(),
     std::bind(&Driver::onParameterEvent, this, std::placeholders::_1));
+#else
+  parameterSubscription_ = rclcpp::AsyncParametersClient::on_parameter_event(
+    this, std::bind(&Driver::onParameterEvent, this, std::placeholders::_1));
+#endif
 }
 
 bool Driver::stop()
