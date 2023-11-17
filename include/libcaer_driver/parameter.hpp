@@ -17,6 +17,8 @@
 #define LIBCAER_DRIVER__PARAMETER_HPP_
 
 #include <cstdint>
+#include <map>
+#include <string>
 
 namespace libcaer_driver
 {
@@ -69,19 +71,17 @@ struct Value
 
 struct Parameter
 {
-  Parameter(RosParamType t, uint8_t ma, uint8_t pa, bool s, uint8_t def, int32_t nV, int32_t xV)
+  Parameter(RosParamType t, uint8_t ma, uint8_t pa, bool s, int32_t def, int32_t nV, int32_t xV)
   : type(t), modAddr(ma), paramAddr(pa), sexN(s)
   {
     defVal = def;
     minVal = nV;
     maxVal = xV;
   }
-  Parameter(RosParamType t, uint8_t ma, uint8_t pa, bool def)
-  : type(BOOLEAN), modAddr(ma), paramAddr(pa)
-  {
-    (void)t;
-    defVal = def;
-  }
+
+  using ParameterMap = std::map<std::string, const Parameter>;
+  static const ParameterMap & getMap(int deviceType);
+
   // ------------- variables ------------------
   RosParamType type{INVALID};
   int8_t modAddr{0};
@@ -91,6 +91,8 @@ struct Parameter
   Value minVal{0};  // min
   Value maxVal{0};  // max
 };
+
+using ParameterMap = Parameter::ParameterMap;
 
 }  // namespace libcaer_driver
 

@@ -75,6 +75,7 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   }
 
   declareParameters();
+  applyParameters();
 
   isBigEndian_ = check_endian::isBigEndian();
   // ------ get other parameters from camera
@@ -133,22 +134,22 @@ void Driver::declareParameters()
 }
 
 void Driver::updateParameter(
-  const std::string & name, const Parameter & p, const rcl_interfaces::msg::ParameterValue & rp)
+  const std::string & name, const Parameter & p, const rclcpp::ParameterValue & rp)
 {
   try {
     switch (p.type) {
       case RosParamType::INTEGER:
-        RCLCPP_INFO_STREAM(get_logger(), "updating " << name << " to " << rp.integer_value);
-        setParameter<int>(name, p, rp);
+        RCLCPP_INFO_STREAM(get_logger(), "updating " << name << " to " << rp.get<int>());
+        setParameter<int>(name, p, rp.get<int>());
         break;
       case RosParamType::BOOLEAN:
         RCLCPP_INFO_STREAM(
-          get_logger(), "updating " << name << " to " << (rp.bool_value ? "True" : "False"));
-        setParameter<bool>(name, p, rp);
+          get_logger(), "updating " << name << " to " << (rp.get<bool>() ? "True" : "False"));
+        setParameter<bool>(name, p, rp.get<bool>());
         break;
       case RosParamType::DOUBLE:
-        RCLCPP_INFO_STREAM(get_logger(), "updating " << name << " to " << rp.double_value);
-        setParameter<double>(name, p, rp);
+        RCLCPP_INFO_STREAM(get_logger(), "updating " << name << " to " << rp.get<double>());
+        setParameter<double>(name, p, rp.get<double>());
         break;
       default:
         throw(std::runtime_error("invalid parameter type!"));
@@ -174,7 +175,29 @@ void Driver::onParameterEvent(std::shared_ptr<const rcl_interfaces::msg::Paramet
     const auto & parameters = wrapper_->getParameters();
     auto it = parameters.find(name);
     if (it != parameters.end()) {
-      updateParameter(name, it->second, ev_it.second->value);
+      updateParameter(name, it->second, rclcpp::ParameterValue(ev_it.second->value));
+    }
+  }
+}
+
+void Driver::applyParameters()
+{
+  // get all available parameters from the wrapper
+  const auto & parameters = wrapper_->getParameters();
+  for (auto & pi : parameters) {
+    auto & p = pi.second;
+    switch (p.type) {
+      case RosParamType::INTEGER:
+        updateParameter(pi.first, p, rclcpp::ParameterValue(p.defVal.get<int>()));
+        break;
+      case RosParamType::BOOLEAN:
+        updateParameter(pi.first, p, rclcpp::ParameterValue(p.defVal.get<bool>()));
+        break;
+      case RosParamType::DOUBLE:
+        updateParameter(pi.first, p, rclcpp::ParameterValue(p.defVal.get<double>()));
+        break;
+      default:
+        break;
     }
   }
 }

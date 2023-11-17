@@ -69,8 +69,9 @@ private:
   bool stop();
   void configureSensor();
   void declareParameters();
+  void applyParameters();
   void updateParameter(
-    const std::string & name, const Parameter & p, const rcl_interfaces::msg::ParameterValue & rp);
+    const std::string & name, const Parameter & p, const rclcpp::ParameterValue & rp);
 
   template <class T>
   T get_or(const std::string & name, const T & def)
@@ -114,16 +115,14 @@ private:
   }
 
   template <class T>
-  T setParameter(
-    const std::string & name, const Parameter & p, const rcl_interfaces::msg::ParameterValue & rp)
+  T setParameter(const std::string & name, const Parameter & p, const T & targetValue)
   {
-    rclcpp::ParameterValue rpv(rp);
-    T v(rpv.get<T>());
+    T v(targetValue);
     if (this->has_parameter(name)) {
-      v = std::clamp<T>(rpv.get<T>(), p.minVal.get<T>(), p.maxVal.get<T>());
-      if (v != rpv.get<T>()) {
+      v = std::clamp<T>(targetValue, p.minVal.get<T>(), p.maxVal.get<T>());
+      if (v != targetValue) {
         RCLCPP_WARN_STREAM(
-          get_logger(), name << ": " << rpv.get<T>() << " out of range, adjusted to " << v);
+          get_logger(), name << ": " << targetValue << " out of range, adjusted to " << v);
       }
       // now update the parameter
       if (wrapper_) {
@@ -134,7 +133,7 @@ private:
         }
         v = v_new;
       }
-      if (rpv.get<T>() != v) {
+      if (targetValue != v) {
         // only communicate the parameter changes to ROS if there actually
         // was a change, or else this triggers an infinite sequence of callbacks
         this->set_parameter(rclcpp::Parameter(name, v));  // this updates the ROS param

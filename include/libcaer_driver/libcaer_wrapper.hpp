@@ -92,7 +92,7 @@ public:
 
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
   void deviceDisconnected();
-  const std::map<std::string, const Parameter> & getParameters();
+  const ParameterMap & getParameters();
   int32_t setIntegerParameter(const std::string & name, const Parameter & p, int32_t value);
 
   template <class T>
