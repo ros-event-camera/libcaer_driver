@@ -16,9 +16,12 @@
 #ifndef LIBCAER_DRIVER__LIBCAER_WRAPPER_HPP_
 #define LIBCAER_DRIVER__LIBCAER_WRAPPER_HPP_
 
+#include <libcaer/devices/davis.h>
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <deque>
 #include <libcaercpp/devices/device.hpp>
 #include <map>
@@ -29,23 +32,27 @@
 #include <utility>
 
 #include "libcaer_driver/callback_handler.hpp"
+#include "libcaer_driver/parameter.hpp"
 
 namespace libcaer_driver
 {
-struct ParamInfo
+class LibcaerWrapper;  // forward declaration
+namespace detail
 {
-  enum ParamType { BIAS, APS, DVS };
-  ParamInfo(ParamType t, uint8_t pa, bool s, uint8_t def, int32_t nV, int32_t xV)
-  : type(t), paramAddr(pa), sexN(s), defVal(def), minVal(nV), maxVal(xV)
-  {
-  }
-  ParamType type;
-  uint8_t paramAddr{0};
-  bool sexN{true};
-  int32_t defVal{0};
-  int32_t minVal{0};
-  int32_t maxVal{std::numeric_limits<int32_t>::max()};
-};
+// forward declare main template, specialize in cpp file
+template <class T>
+T set_parameter(LibcaerWrapper *, const std::string &, const Parameter &, const T)
+{
+  return (T());
+}
+template <>
+int32_t set_parameter<int32_t>(
+  LibcaerWrapper * wrapper, const std::string & name, const Parameter & p, const int32_t value);
+template <>
+bool set_parameter<bool>(
+  LibcaerWrapper * wrapper, const std::string & name, const Parameter & p, const bool value);
+
+}  // namespace detail
 
 class LibcaerWrapper
 {
@@ -65,7 +72,6 @@ public:
 
   void initialize(const std::string & deviceType, int deviceId, const std::string & restrictSerial);
   void setCallbackHandler(CallbackHandler * cb) { callbackHandler_ = cb; }
-  void setEventBuffer(std::vector<uint8_t> * buf) { eventBuffer_ = buf; }
 
   inline void updateMsgsSent(int inc)
   {
@@ -86,28 +92,35 @@ public:
 
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
   void deviceDisconnected();
-  int setParameter(const std::string & name, int value);
-  const std::map<std::string, const ParamInfo> & getParameters();
+  const std::map<std::string, const Parameter> & getParameters();
+  int32_t setIntegerParameter(const std::string & name, const Parameter & p, int32_t value);
+
+  template <class T>
+  T setParameter(const std::string & name, const Parameter & p, T value)
+  {
+    return (detail::set_parameter<T>(this, name, p, value));
+  }
 
 private:
   void processingThread();
   void statsThread();
   void printStatistics();
-  int setBias(const std::string & name, const ParamInfo & p, int value);
+  int setCoarseFineBias(const std::string & name, const Parameter & p, int value);
   void startProcessingThread();
   void stopProcessingThread();
+  void stopStatsThread();
   void processPacket(uint64_t nsSinceEpoch, const libcaer::events::EventPacket & packet);
 
   // ------------ variables
   CallbackHandler * callbackHandler_{nullptr};
-  std::vector<uint8_t> * eventBuffer_;
+
   int width_{0};   // image width
   int height_{0};  // image height
   std::string serialNumber_;
   std::unique_ptr<libcaer::devices::device> device_;
   int16_t deviceType_{0};
   bool deviceRunning_{false};  // status of device
-  std::map<std::string, ParamInfo> biases_;
+  std::map<std::string, Parameter> biases_;
   // --  related to statistics
   double statsInterval_{2.0};  // time between printouts (seconds)
   std::chrono::time_point<std::chrono::system_clock> lastPrintTime_;
@@ -129,5 +142,6 @@ public:
     const libcaer::events::FrameEventPacket & packet, std::string * encoding,
     std::vector<uint8_t> * out, uint32_t * width, uint32_t * height, uint32_t * step);
 };
+
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__LIBCAER_WRAPPER_HPP_

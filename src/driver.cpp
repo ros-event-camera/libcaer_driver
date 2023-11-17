@@ -28,6 +28,28 @@
 
 namespace libcaer_driver
 {
+namespace detail
+{
+template <>
+int32_t sendParameterChange(
+  LibcaerWrapper * wrapper, const std::string & name, const Parameter & p, const int32_t & v)
+{
+  return (wrapper->setParameter<int32_t>(name, p, v));
+}
+template <>
+bool sendParameterChange(
+  LibcaerWrapper * wrapper, const std::string & name, const Parameter & p, const bool & v)
+{
+  return (wrapper->setParameter<bool>(name, p, v));
+}
+template <>
+double sendParameterChange(
+  LibcaerWrapper * wrapper, const std::string & name, const Parameter & p, const double & v)
+{
+  return (wrapper->setParameter<double>(name, p, v));
+}
+}  // namespace detail
+
 Driver::Driver(const rclcpp::NodeOptions & options)
 : Node(
     "libcaer_driver",
@@ -90,84 +112,49 @@ Driver::~Driver()
 
 void Driver::declareParameters()
 {
+  // get all available parameters from the wrapper
   const auto & parameters = wrapper_->getParameters();
-  for (const auto & p : parameters) {
-    const auto & pi = p.second;  // parameter info
-    parameters_.insert(
-      {p.first, Parameter(p.first, Parameter::INTEGER, pi.defVal, pi.minVal, pi.maxVal)});
-    RCLCPP_INFO_STREAM(
-      get_logger(), p.first << " " << pi.defVal << " " << pi.minVal << " " << pi.maxVal);
-  }
-  for (auto & pi : parameters_) {
+  for (auto & pi : parameters) {
     auto & p = pi.second;
-    if (p.type == Parameter::INTEGER) {
-      try {
-        int v(0);
-        if (has_parameter(p.name)) {
-          try {
-            v = get_parameter(p.name).as_int();
-          } catch (const rclcpp::ParameterTypeException & e) {
-            v = p.value.intValue;
-            RCLCPP_WARN_STREAM(get_logger(), "ignoring param " << p.name << " with invalid type!");
-          }
-        } else {
-          v = declare_parameter(
-            p.name, p.value.intValue, rcl_interfaces::msg::ParameterDescriptor(), false);
-        }
-        p.value.intValue = std::clamp<int>(v, p.min_value.intValue, p.max_value.intValue);
-        if (p.value.intValue != v) {
-          RCLCPP_INFO_STREAM(
-            get_logger(),
-            p.name << " outside limits, adjusted " << v << " -> " << p.value.intValue);
-          set_parameter(rclcpp::Parameter(p.name, p.value.intValue));
-        } else {
-          RCLCPP_INFO_STREAM(
-            get_logger(), "parameter " << p.name << " initialized with value " << p.value.intValue);
-        }
-      } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
-        RCLCPP_WARN_STREAM(
-          get_logger(), "overwriting bad param with default: " + std::string(e.what()));
-        declare_parameter(
-          p.name, p.value.intValue, rcl_interfaces::msg::ParameterDescriptor(), true);
-      }
+    switch (p.type) {
+      case RosParamType::INTEGER:
+        declareParameter<int>(pi.first, p);
+        break;
+      case RosParamType::BOOLEAN:
+        declareParameter<bool>(pi.first, p);
+        break;
+      case RosParamType::DOUBLE:
+        declareParameter<double>(pi.first, p);
+        break;
+      default:
+        break;
     }
   }
 }
 
-void Driver::updateParameter(Parameter * p, const rcl_interfaces::msg::ParameterValue & rp)
+void Driver::updateParameter(
+  const std::string & name, const Parameter & p, const rcl_interfaces::msg::ParameterValue & rp)
 {
   try {
-    switch (p->type) {
-      case Parameter::INTEGER: {
-        if (has_parameter(p->name)) {
-          p->value.intValue =
-            std::clamp<int>(rp.integer_value, p->min_value.intValue, p->max_value.intValue);
-          if (p->value.intValue != rp.integer_value) {
-            RCLCPP_WARN_STREAM(
-              get_logger(), p->name << ": " << rp.integer_value << " out of range, adjusted to "
-                                    << p->value.intValue);
-          }
-          // now set the parameter in ROS land
-          if (wrapper_) {
-            const int v_new = wrapper_->setParameter(p->name, p->value.intValue);
-            if (v_new != p->value.intValue) {
-              RCLCPP_WARN_STREAM(get_logger(), "libcaer adjusted " << p->name << " to " << v_new);
-              p->value.intValue = v_new;
-            }
-          }
-          if (rp.integer_value != p->value.intValue) {
-            // only communicate the parameter changes to ROS if there actually
-            // was a change, or else this triggers an infinite sequence of callbacks
-            set_parameter(rclcpp::Parameter(p->name, p->value.intValue));
-          }
-        }
+    switch (p.type) {
+      case RosParamType::INTEGER:
+        RCLCPP_INFO_STREAM(get_logger(), "updating " << name << " to " << rp.integer_value);
+        setParameter<int>(name, p, rp);
         break;
-      }
+      case RosParamType::BOOLEAN:
+        RCLCPP_INFO_STREAM(
+          get_logger(), "updating " << name << " to " << (rp.bool_value ? "True" : "False"));
+        setParameter<bool>(name, p, rp);
+        break;
+      case RosParamType::DOUBLE:
+        RCLCPP_INFO_STREAM(get_logger(), "updating " << name << " to " << rp.double_value);
+        setParameter<double>(name, p, rp);
+        break;
       default:
         throw(std::runtime_error("invalid parameter type!"));
     }
   } catch (const rclcpp::ParameterTypeException & e) {
-    RCLCPP_WARN_STREAM(get_logger(), "ignoring param  " << p->name << " with invalid type!");
+    RCLCPP_WARN_STREAM(get_logger(), "ignoring param  " << name << " with invalid type!");
   }
 }
 
@@ -176,18 +163,18 @@ void Driver::onParameterEvent(std::shared_ptr<const rcl_interfaces::msg::Paramet
   if (event->node != this->get_fully_qualified_name()) {
     return;
   }
-
   std::vector<std::string> validEvents;
-  for (const auto & p : parameters_) {
+  for (const auto & p : wrapper_->getParameters()) {
     validEvents.push_back(p.first);
   }
   rclcpp::ParameterEventsFilter filter(
     event, validEvents, {rclcpp::ParameterEventsFilter::EventType::CHANGED});
   for (auto & ev_it : filter.get_events()) {
     const std::string & name = ev_it.second->name;
-    auto it = parameters_.find(name);
-    if (it != parameters_.end()) {
-      updateParameter(&(it->second), ev_it.second->value);
+    const auto & parameters = wrapper_->getParameters();
+    auto it = parameters.find(name);
+    if (it != parameters.end()) {
+      updateParameter(name, it->second, ev_it.second->value);
     }
   }
 }
@@ -201,14 +188,9 @@ void Driver::start()
   // ------ start camera, may get callbacks from then on
   wrapper_->startSensor();
 
-#if 0
-  parameterSubscription_ = rclcpp::AsyncParametersClient::on_parameter_event(
-    this->get_node_topics_interface(),
-    std::bind(&Driver::onParameterEvent, this, std::placeholders::_1));
-#else
+  // listen to changes in ROS parameters
   parameterSubscription_ = rclcpp::AsyncParametersClient::on_parameter_event(
     this, std::bind(&Driver::onParameterEvent, this, std::placeholders::_1));
-#endif
 }
 
 bool Driver::stop()

@@ -50,25 +50,44 @@ struct DeviceConfig
   int8_t dvs{0};
 };
 
-static const std::map<int, const DeviceConfig> DEVICE_CONFIGURATIONS = {
-  {CAER_DEVICE_DAVIS, {DAVIS_CONFIG_BIAS, DAVIS_CONFIG_APS, DAVIS_CONFIG_DVS}}};
-
-constexpr ParamInfo::ParamType BIAS = ParamInfo::ParamType::BIAS;
-static const std::map<int16_t, std::map<std::string, const ParamInfo>> ALL_PARAMETERS = {
+static const std::map<int16_t, std::map<std::string, const Parameter>> ALL_PARAMETERS = {
   {CAER_DEVICE_DAVIS,
    {
-     {"PrBp_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_PRBP, false, 2, 0, 7)},
-     {"PrBp_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_PRBP, false, 58, 0, 255)},
-     {"PrSFBP_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_PRSFBP, false, 1, 0, 7)},
-     {"PrSFBP_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_PRSFBP, false, 33, 0, 255)},
-     {"DiffBn_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_DIFFBN, true, 4, 0, 7)},
-     {"DiffBn_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_DIFFBN, true, 39, 0, 255)},
-     {"ONBn_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_ONBN, true, 6, 0, 255)},
-     {"ONBn_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_ONBN, true, 200, 0, 255)},
-     {"OFFBn_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_OFFBN, true, 4, 0, 255)},
-     {"OFFBn_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_OFFBN, true, 0, 0, 255)},
-     {"RefrBp_coarse", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_REFRBP, false, 4, 0, 255)},
-     {"RefrBp_fine", ParamInfo(BIAS, DAVIS240_CONFIG_BIAS_REFRBP, false, 25, 0, 255)},
+     {"PrBp_coarse",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_PRBP, false, 2, 0, 7)},
+     {"PrBp_fine",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_PRBP, false, 58, 0, 255)},
+     {"PrSFBP_coarse",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_PRSFBP, false, 1, 0, 7)},
+     {"PrSFBP_fine",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_PRSFBP, false, 33, 0, 255)},
+     {"DiffBn_coarse",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_DIFFBN, true, 4, 0, 7)},
+     {"DiffBn_fine",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_DIFFBN, true, 39, 0, 255)},
+     {"ONBn_coarse",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_ONBN, true, 6, 0, 255)},
+     {"ONBn_fine",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_ONBN, true, 200, 0, 255)},
+     {"OFFBn_coarse",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_OFFBN, true, 4, 0, 255)},
+     {"OFFBn_fine",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_OFFBN, true, 0, 0, 255)},
+     {"RefrBp_coarse",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_REFRBP, false, 4, 0, 255)},
+     {"RefrBp_fine",
+      Parameter(INTEGER, DAVIS_CONFIG_BIAS, DAVIS240_CONFIG_BIAS_REFRBP, false, 25, 0, 255)},
+   }},
+  {CAER_DEVICE_DVXPLORER,
+   {
+     {"bias_sensitivity",
+      Parameter(INTEGER, DVX_DVS_CHIP_BIAS, DVX_DVS_CHIP_BIAS_SIMPLE, false, 2, 0, 4)},
+     {"polarity_flatten",
+      Parameter(BOOLEAN, DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_FLATTEN, false, 0, 0, 1)},
+     {"polarity_on_only",
+      Parameter(BOOLEAN, DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_ON_ONLY, false, 0, 0, 1)},
+     {"polarity_off_only",
+      Parameter(BOOLEAN, DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_OFF_ONLY, false, 0, 0, 1)},
    }}};  // needs 3 closing braces here
 
 // local logger handle
@@ -78,6 +97,24 @@ static rclcpp::Logger logger() { return (rclcpp::get_logger("driver")); }
 static void device_disconnected(void * ptr)
 {
   reinterpret_cast<LibcaerWrapper *>(ptr)->deviceDisconnected();
+}
+
+// some functions to work around silly template restrictions
+
+template <>
+int32_t detail::set_parameter(
+  libcaer_driver::LibcaerWrapper * wrapper, const std::string & name, const Parameter & p,
+  int32_t value)
+{
+  return (wrapper->setIntegerParameter(name, p, value));
+}
+
+template <>
+bool detail::set_parameter(
+  libcaer_driver::LibcaerWrapper * wrapper, const std::string & name, const Parameter & p,
+  bool value)
+{
+  return (static_cast<bool>(wrapper->setIntegerParameter(name, p, static_cast<bool>(value))));
 }
 
 //
@@ -152,6 +189,20 @@ LibcaerWrapper::LibcaerWrapper()
 LibcaerWrapper::~LibcaerWrapper()
 {
   stopSensor();
+  stopStatsThread();
+  device_.reset();
+}
+
+void LibcaerWrapper::deviceDisconnected()
+{
+  RCLCPP_ERROR(logger(), "device disconnected!");
+  stopSensor();
+  stopStatsThread();
+  throw(std::runtime_error("device disconnected!"));
+}
+
+void LibcaerWrapper::stopStatsThread()
+{
   if (statsThread_) {
     {
       keepStatsRunning_.store(false);
@@ -161,13 +212,6 @@ LibcaerWrapper::~LibcaerWrapper()
     statsThread_->join();
     statsThread_.reset();
   }
-  device_.reset();
-}
-
-void LibcaerWrapper::deviceDisconnected()
-{
-  RCLCPP_ERROR(logger(), "device disconnected!");
-  stopSensor();
 }
 
 void LibcaerWrapper::stopProcessingThread()
@@ -216,23 +260,42 @@ static std::unique_ptr<libcaer::devices::device> open_device(
   return (p);
 }
 
+static void log_all_devices()
+{
+  const auto all_devices = libcaer::devices::discover::all();
+  if (all_devices.empty()) {
+    RCLCPP_ERROR(logger(), "found no devices!");
+  }
+  RCLCPP_INFO_STREAM(logger(), "found devices: " << all_devices.size());
+  for (const auto & dev : all_devices) {
+    std::string devInfo("unknown device type");
+    switch (dev.deviceType) {
+      case CAER_DEVICE_DAVIS:
+        devInfo = "DAVIS SN: " + std::string(dev.deviceInfo.davisInfo.deviceSerialNumber);
+        break;
+      case CAER_DEVICE_DVXPLORER:
+        devInfo = "DVXPLORER SN: " + std::string(dev.deviceInfo.dvXplorerInfo.deviceSerialNumber);
+        break;
+      default:
+        break;
+    }
+    RCLCPP_INFO(logger(), "found device: %-30s", devInfo.c_str());
+  }
+}
+
 void LibcaerWrapper::initialize(
   const std::string & devType, int deviceId, const std::string & restrictSN)
 {
+  log_all_devices();
   const auto dev_it = devices.find(devType);
   if (dev_it == devices.end()) {
     throw(std::runtime_error("unsupported device configured: " + devType));
   }
   deviceType_ = dev_it->second;
-  const auto all_devices = libcaer::devices::discover::all();
-  RCLCPP_INFO_STREAM(logger(), "found " << all_devices.size() << " device(s)");
 
   const int num_tries = 5;
   for (int i = 0; i < num_tries; i++) {
     auto devices = libcaer::devices::discover::device(deviceType_);
-    RCLCPP_INFO_STREAM(
-      logger(),
-      "found " << devices.size() << " device(s) of type " << devType << "(" << deviceType_ << ")");
     for (const auto & dev : devices) {
       device_ = open_device(logger(), deviceId, dev, restrictSN, &width_, &height_, &serialNumber_);
       if (device_) {
@@ -353,16 +416,33 @@ static uint8_t & pick(struct caer_bias_coarsefine & cfb, const std::string & nam
   throw(std::runtime_error("bias has no coarse/fine"));
 }
 
-int LibcaerWrapper::setBias(const std::string & name, const ParamInfo & p, int value)
+int32_t LibcaerWrapper::setIntegerParameter(
+  const std::string & name, const Parameter & p, int32_t value)
 {
-  const auto devconfig_it = DEVICE_CONFIGURATIONS.find(deviceType_);
-  if (devconfig_it == DEVICE_CONFIGURATIONS.end()) {
-    RCLCPP_ERROR_STREAM(logger(), "no config defined for device " << deviceType_);
-    throw(std::runtime_error("no config defined for device!"));
+  int32_t actualValue = value;
+  if (p.modAddr == DAVIS_CONFIG_BIAS) {
+    actualValue = setCoarseFineBias(name, p, value);
+  } else {
+    try {
+      device_->configSet(p.modAddr, p.paramAddr, value);
+    } catch (const std::runtime_error & e) {
+      RCLCPP_WARN_STREAM(logger(), "failed to set configuration for " << name << " " << e.what());
+    }
+    try {
+      actualValue = device_->configGet(p.modAddr, p.paramAddr);
+    } catch (const std::runtime_error & e) {
+      // configGet() fails on e.g. dvXplorer
+      // RCLCPP_WARN_STREAM(logger(), "could not read back " << name << " " << e.what());
+    }
   }
+  return (actualValue);
+}
+
+int LibcaerWrapper::setCoarseFineBias(const std::string & name, const Parameter & p, int value)
+{
   // first read the current bias to get either coarse or fine value, whichever
   // is not being set right now
-  const auto modAddr = devconfig_it->second.bias;
+  const auto modAddr = p.modAddr;
   auto newBias = caerBiasCoarseFineParse(device_->configGet(modAddr, p.paramAddr));
   const int prevValue = pick(newBias, name);
   pick(newBias, name) = value;  // this sets the new value!
@@ -382,7 +462,7 @@ int LibcaerWrapper::setBias(const std::string & name, const ParamInfo & p, int v
   return (pick(newBias, name));
 }
 
-const std::map<std::string, const ParamInfo> & LibcaerWrapper::getParameters()
+const std::map<std::string, const Parameter> & LibcaerWrapper::getParameters()
 {
   const auto map_it = ALL_PARAMETERS.find(deviceType_);
   if (map_it == ALL_PARAMETERS.end()) {
@@ -390,27 +470,6 @@ const std::map<std::string, const ParamInfo> & LibcaerWrapper::getParameters()
     throw(std::runtime_error("no parameters defined for device!"));
   }
   return (map_it->second);
-}
-
-int LibcaerWrapper::setParameter(const std::string & name, int value)
-{
-  const auto & parameters = getParameters();
-  const auto param_it = parameters.find(name);
-  if (param_it == parameters.end()) {
-    RCLCPP_ERROR_STREAM(logger(), "param " << name << "not defined for device " << deviceType_);
-    throw(std::runtime_error("param not defined for device!"));
-  }
-  const auto & p = param_it->second;
-  int actualValue{0};
-  switch (p.type) {
-    case ParamInfo::BIAS:
-      actualValue = setBias(name, p, value);
-      break;
-    default:
-      RCLCPP_ERROR_STREAM(logger(), "param " << name << "has invalid param type");
-      throw(std::runtime_error("param not defined for device!"));
-  }
-  return (actualValue);
 }
 
 void LibcaerWrapper::printStatistics()

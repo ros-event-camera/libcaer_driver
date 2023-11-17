@@ -28,11 +28,22 @@
 #include <string>
 
 #include "libcaer_driver/callback_handler.hpp"
+#include "libcaer_driver/parameter.hpp"
 #include "libcaer_driver/resize_hack.hpp"
 
 namespace libcaer_driver
 {
 class LibcaerWrapper;  // forward decl
+
+namespace detail
+{
+// declare a no-op base template here. The specializations are in the cpp file.
+template <class T>
+T sendParameterChange(LibcaerWrapper *, const std::string &, const Parameter &, const T &)
+{
+  return (T());
+}
+}  // namespace detail
 
 class Driver : public rclcpp::Node, public CallbackHandler
 {
@@ -51,48 +62,85 @@ public:
   // ---------------- end of inherited  -----------
 
 private:
-  struct Parameter
-  {
-    enum Type { INVALID, INTEGER, DOUBLE };
-    union Value {
-      int intValue;
-      double doubleValue;
-    };
-    explicit Parameter(const std::string & n, Type t, int v, int min_v, int max_v)
-    : name(n), type(t)
-    {
-      value.intValue = v;
-      min_value.intValue = min_v;
-      max_value.intValue = max_v;
-    }
-    explicit Parameter(const std::string & n, Type t, double v, double min_v, double max_v)
-    : name(n), type(t)
-    {
-      value.doubleValue = v;
-      min_value.doubleValue = min_v;
-      max_value.doubleValue = max_v;
-    }
-    const std::string name;
-    Type type{INVALID};
-    Value value{0};
-    Value min_value{0};
-    Value max_value{0};
-  };
-
-  // related to dynanmic config (runtime parameter update)
+  // related to dynamic config (runtime parameter update)
   void onParameterEvent(std::shared_ptr<const rcl_interfaces::msg::ParameterEvent> event);
   // misc helper functions
   void start();
   bool stop();
   void configureSensor();
   void declareParameters();
-  void updateParameter(Parameter * p, const rcl_interfaces::msg::ParameterValue & rp);
+  void updateParameter(
+    const std::string & name, const Parameter & p, const rcl_interfaces::msg::ParameterValue & rp);
+
   template <class T>
   T get_or(const std::string & name, const T & def)
   {
     T p;
     (void)get_parameter_or(name, p, def);
     return (p);
+  }
+
+  // returns the current value (either default, or value overridden by user at node start)
+  template <class T>
+  T declareParameter(const std::string & name, const Parameter & p)
+  {
+    T v(p.defVal.get<T>());
+    try {
+      T rawV(v);
+      if (this->has_parameter(name)) {
+        try {
+          rawV = this->get_parameter(name).get_value<T>();  // get user-provided ROS value
+        } catch (const rclcpp::ParameterTypeException & e) {
+          RCLCPP_WARN_STREAM(get_logger(), "ignoring param " << name << " with invalid type!");
+        }
+      } else {
+        rawV = this->declare_parameter(
+          name, p.defVal.get<T>(), rcl_interfaces::msg::ParameterDescriptor(), false);
+      }
+      v = std::clamp<T>(rawV, p.minVal.get<T>(), p.maxVal.get<T>());
+      if (rawV != v) {
+        RCLCPP_INFO_STREAM(
+          get_logger(), name << " outside limits, adjusted " << rawV << " -> " << v);
+        this->set_parameter(rclcpp::Parameter(name, v));
+      } else {
+        RCLCPP_INFO_STREAM(get_logger(), "parameter " << name << " initialized with value " << v);
+      }
+    } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
+      RCLCPP_WARN_STREAM(
+        get_logger(), "overwriting bad param with default: " + std::string(e.what()));
+      this->declare_parameter(name, v, rcl_interfaces::msg::ParameterDescriptor(), true);
+    }
+    return (v);
+  }
+
+  template <class T>
+  T setParameter(
+    const std::string & name, const Parameter & p, const rcl_interfaces::msg::ParameterValue & rp)
+  {
+    rclcpp::ParameterValue rpv(rp);
+    T v(rpv.get<T>());
+    if (this->has_parameter(name)) {
+      v = std::clamp<T>(rpv.get<T>(), p.minVal.get<T>(), p.maxVal.get<T>());
+      if (v != rpv.get<T>()) {
+        RCLCPP_WARN_STREAM(
+          get_logger(), name << ": " << rpv.get<T>() << " out of range, adjusted to " << v);
+      }
+      // now update the parameter
+      if (wrapper_) {
+        //        const T v_new = wrapper_->setParameter<T>(name, p, v);
+        const T v_new = detail::sendParameterChange<T>(wrapper_.get(), name, p, v);
+        if (v_new != v) {
+          RCLCPP_WARN_STREAM(get_logger(), "libcaer adjusted " << name << " to " << v_new);
+        }
+        v = v_new;
+      }
+      if (rpv.get<T>() != v) {
+        // only communicate the parameter changes to ROS if there actually
+        // was a change, or else this triggers an infinite sequence of callbacks
+        this->set_parameter(rclcpp::Parameter(name, v));  // this updates the ROS param
+      }
+    }
+    return (v);
   }
 
   // ------------------------  variables ------------------------------
@@ -111,8 +159,6 @@ private:
   image_transport::CameraPublisher cameraPub_;
   sensor_msgs::msg::Image imageMsg_;
   sensor_msgs::msg::CameraInfo cameraInfoMsg_;
-  using ParameterMap = std::map<std::string, Parameter>;
-  ParameterMap parameters_;
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__DRIVER_HPP_
