@@ -1,0 +1,56 @@
+// -*-c++-*---------------------------------------------------------------------------------------
+// Copyright 2023 Bernd Pfrommer <bernd.pfrommer@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef LIBCAER_DRIVER__MESSAGE_CONVERTER_HPP_
+#define LIBCAER_DRIVER__MESSAGE_CONVERTER_HPP_
+
+#include <cstdint>
+#include <event_camera_msgs/msg/event_packet.hpp>
+#include <libcaercpp/events/frame.hpp>
+#include <libcaercpp/events/imu6.hpp>
+#include <libcaercpp/events/polarity.hpp>
+#include <map>
+#include <memory>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+
+// functions for converting libcaer data to ROS format
+
+namespace libcaer_driver
+{
+namespace message_converter
+{
+
+// returns number of events processed
+size_t convert_polarity_packet(
+  event_camera_msgs::msg::EventPacket * msg, const libcaer::events::PolarityEventPacket & packet,
+  const rclcpp::Time & baseTime);
+
+size_t convert_frame_packet(
+  std::vector<std::unique_ptr<sensor_msgs::msg::Image>> * msgs,
+  const libcaer::events::FrameEventPacket & packet, const std::string & frameId,
+  const rclcpp::Time & baseTime);
+
+size_t convert_imu6_packet(
+  std::vector<std::unique_ptr<sensor_msgs::msg::Imu>> * msgs,
+  const libcaer::events::IMU6EventPacket & packet, const std::string & frameId,
+  const rclcpp::Time & baseTime);
+
+}  // namespace message_converter
+
+}  // namespace libcaer_driver
+
+#endif  // LIBCAER_DRIVER__MESSAGE_CONVERTER_HPP_

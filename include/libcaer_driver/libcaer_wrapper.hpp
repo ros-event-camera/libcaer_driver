@@ -72,6 +72,7 @@ public:
 
   void initialize(const std::string & deviceType, int deviceId, const std::string & restrictSerial);
   void setCallbackHandler(CallbackHandler * cb) { callbackHandler_ = cb; }
+  void resetTimeStamps();
 
   inline void updateMsgsSent(int inc)
   {
@@ -86,8 +87,8 @@ public:
 
   bool startSensor();
   void stopSensor();
-  int getWidth() const { return (width_); }
-  int getHeight() const { return (height_); }
+  uint32_t getWidth() const { return (static_cast<uint32_t>(width_)); }
+  uint32_t getHeight() const { return (static_cast<uint32_t>(height_)); }
   const std::string & getSerialNumber() const { return (serialNumber_); }
 
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
@@ -132,15 +133,6 @@ private:
   // -- related to processing thread
   std::shared_ptr<std::thread> processingThread_;
   std::atomic_bool keepProcessingRunning_{false};
-
-public:
-  // Utility functions for converting libcaer data to ROS format
-  static size_t convert_to_mono(
-    std::vector<uint8_t> * mono, uint64_t timeBase,
-    const libcaer::events::PolarityEventPacket & packet);
-  static void frame_to_ros_msg(
-    const libcaer::events::FrameEventPacket & packet, std::string * encoding,
-    std::vector<uint8_t> * out, uint32_t * width, uint32_t * height, uint32_t * step);
 };
 
 }  // namespace libcaer_driver

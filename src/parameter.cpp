@@ -18,8 +18,8 @@
 #include <rclcpp/rclcpp.hpp>
 
 //
-// map between the ROS configuration string and libcaer device type.
-// add new devices here, but update the device map in libcaer_wrapper.cpp
+// Map between the ROS parameters and libcaer parameters for configSet().
+// Add new devices here, but update the device map in libcaer_wrapper.cpp
 
 namespace libcaer_driver
 {

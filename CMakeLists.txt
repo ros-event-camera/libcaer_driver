@@ -41,7 +41,8 @@ find_package(libcaer REQUIRED)
 #
 # --------- driver (composable component) -------------
 
-add_library(driver SHARED  src/libcaer_wrapper.cpp  src/driver.cpp src/parameter.cpp)
+add_library(driver SHARED  src/libcaer_wrapper.cpp  src/driver.cpp
+  src/parameter.cpp src/message_converter.cpp src/action.cpp)
 ament_target_dependencies(driver rclcpp rclcpp_components
   event_camera_msgs std_srvs camera_info_manager image_transport sensor_msgs)
 target_include_directories(driver PUBLIC include)

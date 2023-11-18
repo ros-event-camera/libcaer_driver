@@ -14,6 +14,7 @@
 // limitations under the License.
 
 #include <chrono>
+#include <libcaer_driver/action.hpp>
 #include <libcaer_driver/libcaer_wrapper.hpp>
 #include <libcaer_driver/resize_hack.hpp>
 #include <libcaercpp/devices/device_discover.hpp>
@@ -32,7 +33,7 @@ using std::chrono::system_clock;
 //
 // ------------- local static functions ------------
 static const std::map<std::string, int> devices = {
-    {"dvxplorer", CAER_DEVICE_DVXPLORER}, {"davis", CAER_DEVICE_DAVIS}};
+  {"dvxplorer", CAER_DEVICE_DVXPLORER}, {"davis", CAER_DEVICE_DAVIS}};
 
 // local logger handle
 static rclcpp::Logger logger() { return (rclcpp::get_logger("driver")); }
@@ -59,67 +60,6 @@ bool detail::set_parameter(
   bool value)
 {
   return (static_cast<bool>(wrapper->setIntegerParameter(name, p, static_cast<bool>(value))));
-}
-
-//
-// -------------- free functions  -----------------------
-//
-
-size_t LibcaerWrapper::convert_to_mono(
-  std::vector<uint8_t> * data, uint64_t timeBase,
-  const libcaer::events::PolarityEventPacket & packet)
-{
-  const size_t BYTES_PER_ENCODED_EVENT = 8;
-  const size_t n = packet.getEventNumber() * BYTES_PER_ENCODED_EVENT;
-  const size_t oldSize = data->size();
-  resize_hack(*data, oldSize + n);
-
-  uint64_t * p = reinterpret_cast<uint64_t *>(data->data());
-  for (int32_t i = 0; i < packet.getEventNumber(); i++, p++) {
-    const auto & e = packet[i];
-    const auto t = e.getTimestamp64(packet);
-    const uint64_t dt = t - timeBase;
-    *p = static_cast<uint64_t>(e.getPolarity()) << 63 | static_cast<uint64_t>(e.getY()) << 48 |
-         static_cast<uint64_t>(e.getX()) << 32 | dt;
-  }
-  return (packet.getEventNumber());
-}
-
-void LibcaerWrapper::frame_to_ros_msg(
-  const libcaer::events::FrameEventPacket & packet, std::string * encoding,
-  std::vector<uint8_t> * out, uint32_t * width, uint32_t * height, uint32_t * step)
-{
-  const auto & frame = packet[0];  // grab first frame in packet
-  const auto nc = frame.getChannelNumber();
-  *height = frame.getLengthY();
-  *width = frame.getLengthX();
-
-  const uint16_t * data = frame.getPixelArrayUnsafe();
-  uint32_t numChan = static_cast<uint32_t>(nc);
-  switch (frame.getChannelNumber()) {
-    case libcaer::events::FrameEvent::colorChannels::GRAYSCALE:
-      *encoding = "mono8";
-      break;
-    case libcaer::events::FrameEvent::colorChannels::RGB:
-      *encoding = "rgb8";
-      break;
-    case libcaer::events::FrameEvent::colorChannels::RGBA:
-      *encoding = "rgba8";
-      break;
-    default:
-      RCLCPP_ERROR_STREAM(
-        logger(), "invalid number of channels for frame: " << static_cast<uint32_t>(nc));
-      throw(std::runtime_error("invalid number of channels for frame"));
-  }
-
-  const uint32_t stride = numChan * (*width);
-  *step = stride;
-  out->resize(stride * (*height));
-  for (uint32_t y = 0; y < (*height) * numChan; y++) {
-    for (uint32_t x = 0; x < *width; x++) {
-      (*out)[y * (*width) + x] = data[y * (*width) + x] >> 8;  // convert from 16bit to 8bit.
-    }
-  }
 }
 
 LibcaerWrapper::LibcaerWrapper()
@@ -314,6 +254,11 @@ void LibcaerWrapper::processPacket(
       callbackHandler_->framePacketCallback(nsSinceEpoch, fpacket);
       break;
     }
+    case IMU6_EVENT: {
+      const auto & fpacket = static_cast<const libcaer::events::IMU6EventPacket &>(packet);
+      callbackHandler_->imu6PacketCallback(nsSinceEpoch, fpacket);
+      break;
+    }
     default:
       break;
   }
@@ -412,10 +357,16 @@ const ParameterMap & LibcaerWrapper::getParameters()
 {
   try {
     return (Parameter::getMap(deviceType_));
-  } catch (const std::runtime_error & e){
+  } catch (const std::runtime_error & e) {
     RCLCPP_ERROR_STREAM(logger(), "no parameters defined for device " << deviceType_);
-  throw (e);
+    throw(e);
   }
+}
+
+void LibcaerWrapper::resetTimeStamps()
+{
+  const auto a = action::get(deviceType_, "time_reset");
+  device_->configSet(std::get<0>(a), std::get<1>(a), std::get<2>(a));
 }
 
 void LibcaerWrapper::printStatistics()

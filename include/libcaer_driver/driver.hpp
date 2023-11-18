@@ -20,16 +20,17 @@
 #include <event_camera_msgs/msg/event_packet.hpp>
 #include <image_transport/image_transport.hpp>
 #include <libcaercpp/events/frame.hpp>
+#include <libcaercpp/events/imu6.hpp>
 #include <map>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 #include <std_msgs/msg/header.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <string>
 
 #include "libcaer_driver/callback_handler.hpp"
 #include "libcaer_driver/parameter.hpp"
-#include "libcaer_driver/resize_hack.hpp"
 
 namespace libcaer_driver
 {
@@ -48,6 +49,7 @@ T sendParameterChange(LibcaerWrapper *, const std::string &, const Parameter &, 
 class Driver : public rclcpp::Node, public CallbackHandler
 {
   using EventPacketMsg = event_camera_msgs::msg::EventPacket;
+  using ImuMsg = sensor_msgs::msg::Imu;
   using Trigger = std_srvs::srv::Trigger;
 
 public:
@@ -58,6 +60,7 @@ public:
   void polarityPacketCallback(
     uint64_t t, const libcaer::events::PolarityEventPacket & packet) override;
   void framePacketCallback(uint64_t t, const libcaer::events::FrameEventPacket & packet) override;
+  void imu6PacketCallback(uint64_t t, const libcaer::events::IMU6EventPacket & packet) override;
 
   // ---------------- end of inherited  -----------
 
@@ -70,10 +73,12 @@ private:
   void configureSensor();
   void declareParameters();
   void applyParameters();
+  void resetBaseTime();
+
   void updateParameter(
     const std::string & name, const Parameter & p, const rclcpp::ParameterValue & rp);
 
-  template <class T>
+  template <typename T>
   T get_or(const std::string & name, const T & def)
   {
     T p;
@@ -145,18 +150,23 @@ private:
   // ------------------------  variables ------------------------------
   std::shared_ptr<LibcaerWrapper> wrapper_;
   bool isBigEndian_;
+  std::string cameraFrameId_{"camera"};
+  std::string imuFrameId_{"imu"};
+  uint32_t width_{0};
+  uint32_t height_{0};
   uint64_t seq_{0};        // sequence number
   size_t reserveSize_{0};  // recommended reserve size
   uint64_t lastMessageTime_{0};
   uint64_t messageThresholdTime_{0};  // threshold time for sending message
   size_t messageThresholdSize_{0};    // threshold size for sending message
-  EventPacketMsg::UniquePtr msg_;
+  EventPacketMsg::UniquePtr eventMsg_;
+  rclcpp::Time rosBaseTime_;
   rclcpp::Publisher<EventPacketMsg>::SharedPtr eventPub_;
+  rclcpp::Publisher<ImuMsg>::SharedPtr imuPub_;
   // ------ related to dynamic config and services
   rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameterSubscription_;
   std::shared_ptr<camera_info_manager::CameraInfoManager> infoManager_;
   image_transport::CameraPublisher cameraPub_;
-  sensor_msgs::msg::Image imageMsg_;
   sensor_msgs::msg::CameraInfo cameraInfoMsg_;
 };
 }  // namespace libcaer_driver

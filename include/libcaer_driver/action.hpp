@@ -13,24 +13,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_
-#define LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_
+#ifndef LIBCAER_DRIVER__ACTION_HPP_
+#define LIBCAER_DRIVER__ACTION_HPP_
 
-#include <libcaercpp/events/frame.hpp>
-#include <libcaercpp/events/polarity.hpp>
+#include <cstdint>
+#include <string>
+#include <tuple>
 
 namespace libcaer_driver
 {
-class CallbackHandler
+namespace action
 {
-public:
-  CallbackHandler() {}
-  virtual ~CallbackHandler() {}
-  virtual void polarityPacketCallback(
-    uint64_t t, const libcaer::events::PolarityEventPacket & packet) = 0;
-  virtual void framePacketCallback(
-    uint64_t t, const libcaer::events::FrameEventPacket & packet) = 0;
-  virtual void imu6PacketCallback(uint64_t t, const libcaer::events::IMU6EventPacket & packet) = 0;
-};
+using Action = std::tuple<int8_t, uint8_t, uint32_t>;
+Action get(int deviceType, const std::string & name);
+}  // namespace action
 }  // namespace libcaer_driver
-#endif  // LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_
+
+#endif  // LIBCAER_DRIVER__ACTION_HPP_

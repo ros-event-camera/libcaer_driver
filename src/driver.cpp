@@ -13,18 +13,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "libcaer_driver/driver.hpp"
-
 #include <chrono>
 #include <event_camera_msgs/msg/event_packet.hpp>
+#include <libcaer_driver/check_endian.hpp>
+#include <libcaer_driver/driver.hpp>
+#include <libcaer_driver/libcaer_wrapper.hpp>
+#include <libcaer_driver/message_converter.hpp>
 #include <map>
 #include <rclcpp/parameter_events_filter.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
 #include <string>
 #include <vector>
-
-#include "libcaer_driver/check_endian.hpp"
-#include "libcaer_driver/libcaer_wrapper.hpp"
 
 namespace libcaer_driver
 {
@@ -63,13 +62,17 @@ Driver::Driver(const rclcpp::NodeOptions & options)
     "~/events", rclcpp::QoS(rclcpp::KeepLast(get_or("send_queue_size", 1000)))
                   .best_effort()
                   .durability_volatile());
+  imuPub_ = this->create_publisher<ImuMsg>(
+    "~/imu", rclcpp::QoS(rclcpp::KeepLast(get_or("imu_send_queue_size", 10)))
+               .best_effort()
+               .durability_volatile());
 
   const std::string deviceType = get_or("device_type", std::string("davis"));
   try {
     wrapper_.reset(new LibcaerWrapper());
     wrapper_->setCallbackHandler(this);
     wrapper_->initialize(deviceType, get_or("device_id", 1), get_or("serial", std::string()));
-  } catch (std::exception & e) {
+  } catch (std::runtime_error & e) {
     RCLCPP_ERROR_STREAM(get_logger(), "sensor initialization failed: " << e.what());
     throw(e);
   }
@@ -79,30 +82,43 @@ Driver::Driver(const rclcpp::NodeOptions & options)
 
   isBigEndian_ = check_endian::isBigEndian();
   // ------ get other parameters from camera
-  imageMsg_.width = wrapper_->getWidth();
-  imageMsg_.height = wrapper_->getHeight();
-  imageMsg_.header.frame_id = get_or("frame_id", wrapper_->getSerialNumber());
+  cameraFrameId_ = get_or<std::string>("camera_frame_id", "camera");
+  imuFrameId_ = get_or<std::string>("imu_frame_id", "imu");
+  width_ = wrapper_->getWidth();
+  height_ = wrapper_->getHeight();
   RCLCPP_INFO_STREAM(
-    get_logger(), "res: " << imageMsg_.width << " x " << imageMsg_.height
-                          << " using frame id: " << imageMsg_.header.frame_id);
+    get_logger(), "res: " << width_ << " x " << height_ << " camera frame: " << cameraFrameId_
+                          << " imu frame: " << imuFrameId_);
 
   infoManager_ = std::make_shared<camera_info_manager::CameraInfoManager>(
-    this, get_name(), get_or("camerainfo_url", std::string("")));
+    this, get_name(), get_or<std::string>("camerainfo_url", ""));
 
   cameraInfoMsg_ = infoManager_->getCameraInfo();
   if (
-    ((cameraInfoMsg_.width != 0) && (cameraInfoMsg_.width != imageMsg_.width)) ||
-    ((cameraInfoMsg_.height != 0) && (cameraInfoMsg_.height != imageMsg_.height))) {
+    ((cameraInfoMsg_.width != 0) && (cameraInfoMsg_.width != width_)) ||
+    ((cameraInfoMsg_.height != 0) && (cameraInfoMsg_.height != height_))) {
     RCLCPP_WARN(get_logger(), "sensor resolution does not match calibration file!");
   }
-  cameraInfoMsg_.width = imageMsg_.width;
-  cameraInfoMsg_.height = imageMsg_.height;
-  cameraInfoMsg_.header.frame_id = imageMsg_.header.frame_id;
+  if (cameraInfoMsg_.width == 0) {
+    cameraInfoMsg_.width = width_;
+  }
+  if (cameraInfoMsg_.height == 0) {
+    cameraInfoMsg_.height = height_;
+  }
+  cameraInfoMsg_.header.frame_id = cameraFrameId_;
 
   cameraPub_ =
     image_transport::create_camera_publisher(this, "~/image_raw", rmw_qos_profile_sensor_data);
 
   start();
+}
+
+void Driver::resetBaseTime()
+{
+  if (wrapper_) {
+    wrapper_->resetTimeStamps();
+  }
+  rosBaseTime_ = this->get_clock()->now();
 }
 
 Driver::~Driver()
@@ -208,6 +224,8 @@ void Driver::start()
   this->get_parameter_or("statistics_print_interval", printInterval, 1.0);
   wrapper_->setStatisticsInterval(printInterval);
 
+  resetBaseTime();
+
   // ------ start camera, may get callbacks from then on
   wrapper_->startSensor();
 
@@ -231,47 +249,53 @@ void Driver::configureSensor() {}
 void Driver::polarityPacketCallback(uint64_t t, const libcaer::events::PolarityEventPacket & packet)
 {
   if (eventPub_->get_subscription_count() > 0) {
-    if (!msg_) {
-      msg_.reset(new EventPacketMsg());
-      msg_->header.frame_id = imageMsg_.header.frame_id;
-      msg_->time_base = packet[0].getTimestamp64(packet);
-      msg_->encoding = "mono";
-      msg_->seq = seq_++;
-      msg_->width = imageMsg_.width;
-      msg_->height = imageMsg_.height;
-      msg_->is_bigendian = isBigEndian_;
-      msg_->header.stamp = rclcpp::Time(t, RCL_SYSTEM_TIME);
-      msg_->events.reserve(reserveSize_);
+    if (!eventMsg_) {
+      eventMsg_.reset(new EventPacketMsg());
+      eventMsg_->header.frame_id = cameraFrameId_;
+      eventMsg_->encoding = "mono";
+      eventMsg_->seq = seq_++;
+      eventMsg_->width = width_;
+      eventMsg_->height = height_;
+      eventMsg_->is_bigendian = isBigEndian_;
+      eventMsg_->events.reserve(reserveSize_);
     }
-    auto & events = msg_->events;
-    (void)LibcaerWrapper::convert_to_mono(&events, msg_->time_base, packet);
+    (void)message_converter::convert_polarity_packet(eventMsg_.get(), packet, rosBaseTime_);
+    const auto & events = eventMsg_->events;
     if (t - lastMessageTime_ > messageThresholdTime_ || events.size() > messageThresholdSize_) {
       reserveSize_ = std::max(reserveSize_, events.size());
-      eventPub_->publish(std::move(msg_));
+      eventPub_->publish(std::move(eventMsg_));
       lastMessageTime_ = t;
       wrapper_->updateBytesSent(events.size());
       wrapper_->updateMsgsSent(1);
     } else {
-      if (!msg_) {
-        msg_.reset();
+      if (!eventMsg_) {
+        eventMsg_.reset();
       }
     }
   }
 }
 
-void Driver::framePacketCallback(uint64_t t, const libcaer::events::FrameEventPacket & packet)
+void Driver::framePacketCallback(uint64_t, const libcaer::events::FrameEventPacket & packet)
 {
   if (cameraPub_.getNumSubscribers() > 0) {
-    imageMsg_.header.stamp = rclcpp::Time(t, RCL_SYSTEM_TIME);
-    sensor_msgs::msg::CameraInfo::UniquePtr cinfo(new sensor_msgs::msg::CameraInfo(cameraInfoMsg_));
-    sensor_msgs::msg::Image::UniquePtr img(new sensor_msgs::msg::Image(imageMsg_));
-    void frame_to_ros_msg(
-      const libcaer::events::FrameEventPacket & packet, std::string * encoding,
-      std::vector<uint8_t> * out, uint32_t * height, uint32_t * width, uint32_t * step);
+    std::vector<std::unique_ptr<sensor_msgs::msg::Image>> msgs;
+    (void)message_converter::convert_frame_packet(&msgs, packet, cameraFrameId_, rosBaseTime_);
+    for (auto & img : msgs) {
+      sensor_msgs::msg::CameraInfo::UniquePtr cinfo(
+        new sensor_msgs::msg::CameraInfo(cameraInfoMsg_));
+      cameraPub_.publish(std::move(img), std::move(cinfo));
+    }
+  }
+}
 
-    LibcaerWrapper::frame_to_ros_msg(
-      packet, &img->encoding, &img->data, &img->width, &img->height, &img->step);
-    cameraPub_.publish(std::move(img), std::move(cinfo));
+void Driver::imu6PacketCallback(uint64_t, const libcaer::events::IMU6EventPacket & packet)
+{
+  if (imuPub_->get_subscription_count() > 0) {
+    std::vector<std::unique_ptr<sensor_msgs::msg::Imu>> msgs;
+    (void)message_converter::convert_imu6_packet(&msgs, packet, imuFrameId_, rosBaseTime_);
+    for (auto & msg : msgs) {
+      imuPub_->publish(std::move(msg));
+    }
   }
 }
 }  // namespace libcaer_driver
