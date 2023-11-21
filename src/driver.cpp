@@ -80,6 +80,23 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   declareParameters();
   applyParameters();
 
+  isMaster_ = get_or<bool>("master", true);
+  if (isMaster_) {
+    if (!wrapper_->isMaster()) {
+      RCLCPP_WARN(get_logger(), "this device should be master, but the hardware says it's not!");
+    }
+    resetPub_ =
+      this->create_publisher<TimeMsg>("~/reset_timestamps", rclcpp::QoS(rclcpp::KeepLast(10)));
+  } else {
+    if (wrapper_->isMaster()) {
+      RCLCPP_WARN(get_logger(), "this device should be slave, but the hardware says it's not!");
+    }
+
+    resetSub_ = this->create_subscription<TimeMsg>(
+      "~/reset_timestamps", rclcpp::QoS(rclcpp::KeepLast(10)),
+      std::bind(&Driver::resetMsg, this, std::placeholders::_1));
+  }
+
   isBigEndian_ = check_endian::isBigEndian();
   // ------ get other parameters from camera
   cameraFrameId_ = get_or<std::string>("camera_frame_id", "camera");
@@ -113,12 +130,29 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   start();
 }
 
+void Driver::resetMsg(TimeMsg::ConstSharedPtr msg)
+{
+  // This message should only be received by the slave
+  if (wrapper_) {
+    if (!wrapper_->isMaster()) {
+      rosBaseTime_ = rclcpp::Time(*msg);
+    } else {
+      RCLCPP_WARN(get_logger(), "master received a time reset message, why?");
+    }
+  }
+}
+
 void Driver::resetBaseTime()
 {
   if (wrapper_) {
     wrapper_->resetTimeStamps();
   }
   rosBaseTime_ = this->get_clock()->now();
+  if (isMaster_) {
+    TimeMsg msg;
+    msg = rosBaseTime_;
+    resetPub_->publish(msg);
+  }
 }
 
 Driver::~Driver()

@@ -90,6 +90,7 @@ public:
   uint32_t getWidth() const { return (static_cast<uint32_t>(width_)); }
   uint32_t getHeight() const { return (static_cast<uint32_t>(height_)); }
   const std::string & getSerialNumber() const { return (serialNumber_); }
+  bool isMaster() const { return (isMaster_); }
 
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
   void deviceDisconnected();
@@ -118,6 +119,7 @@ private:
   int width_{0};   // image width
   int height_{0};  // image height
   std::string serialNumber_;
+  bool isMaster_{true};  // whether it is configured as master or not
   std::unique_ptr<libcaer::devices::device> device_;
   int16_t deviceType_{0};
   bool deviceRunning_{false};  // status of device

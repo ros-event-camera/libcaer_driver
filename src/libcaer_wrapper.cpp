@@ -110,13 +110,14 @@ void LibcaerWrapper::stopProcessingThread()
 template <class T>
 std::unique_ptr<T> open_dev(
   rclcpp::Logger logger, int16_t deviceId, const std::string & restrictSN, int * width,
-  int * height, std::string * sn)
+  int * height, std::string * sn, bool * isMaster)
 {
   auto p = std::make_unique<T>(deviceId, 0 /*usb bus*/, 0 /*usb dev*/, restrictSN);
   const auto info = reinterpret_cast<T *>(p.get())->infoGet();
   *sn = info.deviceSerialNumber;
   *width = info.dvsSizeX;
   *height = info.dvsSizeY;
+  *isMaster = info.deviceIsMaster;
   RCLCPP_INFO(
     logger, "opened %s: id: %d, master: %d, res(%d, %d), logic version: %d", info.deviceString,
     info.deviceID, info.deviceIsMaster, info.dvsSizeX, info.dvsSizeY, info.logicVersion);
@@ -125,16 +126,18 @@ std::unique_ptr<T> open_dev(
 
 static std::unique_ptr<libcaer::devices::device> open_device(
   rclcpp::Logger logger, int16_t deviceId, const caer_device_discovery_result & dr,
-  const std::string & restrictSN, int * width, int * height, std::string * sn)
+  const std::string & restrictSN, int * width, int * height, std::string * sn, bool * isMaster)
 {
   std::unique_ptr<libcaer::devices::device> p;
 
   switch (dr.deviceType) {
     case CAER_DEVICE_DAVIS:
-      p = open_dev<libcaer::devices::davis>(logger, deviceId, restrictSN, width, height, sn);
+      p = open_dev<libcaer::devices::davis>(
+        logger, deviceId, restrictSN, width, height, sn, isMaster);
       break;
     case CAER_DEVICE_DVXPLORER:
-      p = open_dev<libcaer::devices::dvXplorer>(logger, deviceId, restrictSN, width, height, sn);
+      p = open_dev<libcaer::devices::dvXplorer>(
+        logger, deviceId, restrictSN, width, height, sn, isMaster);
       break;
     default:
       RCLCPP_ERROR(logger, "found device of unsupported type: %d", dr.deviceType);
@@ -181,7 +184,8 @@ void LibcaerWrapper::initialize(
   for (int i = 0; i < num_tries; i++) {
     auto devices = libcaer::devices::discover::device(deviceType_);
     for (const auto & dev : devices) {
-      device_ = open_device(logger(), deviceId, dev, restrictSN, &width_, &height_, &serialNumber_);
+      device_ = open_device(
+        logger(), deviceId, dev, restrictSN, &width_, &height_, &serialNumber_, &isMaster_);
       if (device_) {
         break;
       }

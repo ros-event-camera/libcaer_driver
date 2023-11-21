@@ -16,6 +16,7 @@
 #ifndef LIBCAER_DRIVER__DRIVER_HPP_
 #define LIBCAER_DRIVER__DRIVER_HPP_
 
+#include <builtin_interfaces/msg/time.hpp>
 #include <camera_info_manager/camera_info_manager.hpp>
 #include <event_camera_msgs/msg/event_packet.hpp>
 #include <image_transport/image_transport.hpp>
@@ -50,6 +51,7 @@ class Driver : public rclcpp::Node, public CallbackHandler
 {
   using EventPacketMsg = event_camera_msgs::msg::EventPacket;
   using ImuMsg = sensor_msgs::msg::Imu;
+  using TimeMsg = builtin_interfaces::msg::Time;
   using Trigger = std_srvs::srv::Trigger;
 
 public:
@@ -74,6 +76,7 @@ private:
   void declareParameters();
   void applyParameters();
   void resetBaseTime();
+  void resetMsg(TimeMsg::ConstSharedPtr msg);
 
   void updateParameter(
     const std::string & name, const Parameter & p, const rclcpp::ParameterValue & rp);
@@ -149,6 +152,7 @@ private:
 
   // ------------------------  variables ------------------------------
   std::shared_ptr<LibcaerWrapper> wrapper_;
+  bool isMaster_{true};
   bool isBigEndian_;
   std::string cameraFrameId_{"camera"};
   std::string imuFrameId_{"imu"};
@@ -163,6 +167,8 @@ private:
   rclcpp::Time rosBaseTime_;
   rclcpp::Publisher<EventPacketMsg>::SharedPtr eventPub_;
   rclcpp::Publisher<ImuMsg>::SharedPtr imuPub_;
+  rclcpp::Publisher<TimeMsg>::SharedPtr resetPub_;
+  rclcpp::Subscription<TimeMsg>::SharedPtr resetSub_;
   // ------ related to dynamic config and services
   rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameterSubscription_;
   std::shared_ptr<camera_info_manager::CameraInfoManager> infoManager_;
