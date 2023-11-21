@@ -212,12 +212,14 @@ void Driver::onParameterEvent(std::shared_ptr<const rcl_interfaces::msg::Paramet
   if (event->node != this->get_fully_qualified_name()) {
     return;
   }
+  // need to make copy to work around Foxy API
+  auto ev = std::make_shared<rcl_interfaces::msg::ParameterEvent>(*event);
   std::vector<std::string> validEvents;
   for (const auto & p : wrapper_->getParameters()) {
     validEvents.push_back(p.first);
   }
   rclcpp::ParameterEventsFilter filter(
-    event, validEvents, {rclcpp::ParameterEventsFilter::EventType::CHANGED});
+    ev, validEvents, {rclcpp::ParameterEventsFilter::EventType::CHANGED});
   for (auto & ev_it : filter.get_events()) {
     const std::string & name = ev_it.second->name;
     const auto & parameters = wrapper_->getParameters();
