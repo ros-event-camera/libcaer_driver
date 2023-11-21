@@ -30,7 +30,8 @@ size_t convert_polarity_packet(
 {
   if (msg->events.empty() && (packet.getEventNumber() > 0)) {
     msg->time_base = packet[0].getTimestamp64(packet) * 1000;
-    msg->header.stamp = baseTime + rclcpp::Duration::from_nanoseconds(msg->time_base);
+    msg->header.stamp =
+      baseTime + rclcpp::Duration(std::chrono::nanoseconds(msg->time_base * 1000));
   }
 
   const size_t BYTES_PER_ENCODED_EVENT = 8;
@@ -73,7 +74,7 @@ static std::unique_ptr<sensor_msgs::msg::Image> convert_frame(
       throw(std::runtime_error("invalid number of channels for frame"));
   }
   msg->header.stamp =
-    baseTime + rclcpp::Duration::from_nanoseconds(frame.getTimestamp64(packet) * 1000);
+    baseTime + rclcpp::Duration(std::chrono::nanoseconds(frame.getTimestamp64(packet) * 1000));
   msg->header.frame_id = frameId;
 
   const uint32_t stride = numChan * (msg->width);
@@ -116,7 +117,7 @@ static std::unique_ptr<sensor_msgs::msg::Imu> convert_imu(
   msg->orientation_covariance[0] = -1.0;  // see ROS REP 145
   msg->header.frame_id = frameId;
   msg->header.stamp =
-    baseTime + rclcpp::Duration::from_nanoseconds(imu.getTimestamp64(packet) * 1000);
+    baseTime + rclcpp::Duration(std::chrono::nanoseconds(imu.getTimestamp64(packet) * 1000));
   return (msg);
 }
 
