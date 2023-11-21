@@ -41,10 +41,10 @@ size_t convert_polarity_packet(
   uint64_t * p = reinterpret_cast<uint64_t *>(msg->events.data() + oldSize);
   for (int32_t i = 0; i < packet.getEventNumber(); i++, p++) {
     const auto & e = packet[i];
-    const auto t = e.getTimestamp64(packet);
+    const auto t = e.getTimestamp64(packet) * 1000;
     const uint64_t dt = t - msg->time_base;
     *p = static_cast<uint64_t>(e.getPolarity()) << 63 | static_cast<uint64_t>(e.getY()) << 48 |
-         static_cast<uint64_t>(e.getX()) << 32 | dt;
+         static_cast<uint64_t>(e.getX()) << 32 | (dt & 0xFFFFFFFFULL);
   }
   return (packet.getEventNumber());
 }

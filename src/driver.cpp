@@ -130,27 +130,25 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   start();
 }
 
-void Driver::resetMsg(TimeMsg::ConstSharedPtr msg)
+void Driver::resetMsg(TimeMsg::ConstSharedPtr)
 {
   // This message should only be received by the slave
   if (wrapper_) {
-    if (!wrapper_->isMaster()) {
-      rosBaseTime_ = rclcpp::Time(*msg);
-    } else {
+    if (wrapper_->isMaster()) {
       RCLCPP_WARN(get_logger(), "master received a time reset message, why?");
     }
   }
 }
 
-void Driver::resetBaseTime()
+void Driver::resetTime()
 {
   if (wrapper_) {
     wrapper_->resetTimeStamps();
   }
-  rosBaseTime_ = this->get_clock()->now();
+
   if (isMaster_) {
-    TimeMsg msg;
-    msg = rosBaseTime_;
+    TimeMsg msg(this->get_clock()->now());
+
     resetPub_->publish(msg);
   }
 }
@@ -258,7 +256,7 @@ void Driver::start()
   this->get_parameter_or("statistics_print_interval", printInterval, 1.0);
   wrapper_->setStatisticsInterval(printInterval);
 
-  resetBaseTime();
+  resetTime();
 
   // ------ start camera, may get callbacks from then on
   wrapper_->startSensor();
@@ -293,7 +291,8 @@ void Driver::polarityPacketCallback(uint64_t t, const libcaer::events::PolarityE
       eventMsg_->is_bigendian = isBigEndian_;
       eventMsg_->events.reserve(reserveSize_);
     }
-    (void)message_converter::convert_polarity_packet(eventMsg_.get(), packet, rosBaseTime_);
+    (void)message_converter::convert_polarity_packet(
+      eventMsg_.get(), packet, rclcpp::Time(t, RCL_SYSTEM_TIME));
     const auto & events = eventMsg_->events;
     if (t - lastMessageTime_ > messageThresholdTime_ || events.size() > messageThresholdSize_) {
       reserveSize_ = std::max(reserveSize_, events.size());
@@ -309,11 +308,12 @@ void Driver::polarityPacketCallback(uint64_t t, const libcaer::events::PolarityE
   }
 }
 
-void Driver::framePacketCallback(uint64_t, const libcaer::events::FrameEventPacket & packet)
+void Driver::framePacketCallback(uint64_t t, const libcaer::events::FrameEventPacket & packet)
 {
   if (cameraPub_.getNumSubscribers() > 0) {
     std::vector<std::unique_ptr<sensor_msgs::msg::Image>> msgs;
-    (void)message_converter::convert_frame_packet(&msgs, packet, cameraFrameId_, rosBaseTime_);
+    (void)message_converter::convert_frame_packet(
+      &msgs, packet, cameraFrameId_, rclcpp::Time(t, RCL_SYSTEM_TIME));
     for (auto & img : msgs) {
       sensor_msgs::msg::CameraInfo::UniquePtr cinfo(
         new sensor_msgs::msg::CameraInfo(cameraInfoMsg_));
@@ -322,11 +322,12 @@ void Driver::framePacketCallback(uint64_t, const libcaer::events::FrameEventPack
   }
 }
 
-void Driver::imu6PacketCallback(uint64_t, const libcaer::events::IMU6EventPacket & packet)
+void Driver::imu6PacketCallback(uint64_t t, const libcaer::events::IMU6EventPacket & packet)
 {
   if (imuPub_->get_subscription_count() > 0) {
     std::vector<std::unique_ptr<sensor_msgs::msg::Imu>> msgs;
-    (void)message_converter::convert_imu6_packet(&msgs, packet, imuFrameId_, rosBaseTime_);
+    (void)message_converter::convert_imu6_packet(
+      &msgs, packet, imuFrameId_, rclcpp::Time(t, RCL_SYSTEM_TIME));
     for (auto & msg : msgs) {
       imuPub_->publish(std::move(msg));
     }

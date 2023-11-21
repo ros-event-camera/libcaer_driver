@@ -75,7 +75,7 @@ private:
   void configureSensor();
   void declareParameters();
   void applyParameters();
-  void resetBaseTime();
+  void resetTime();
   void resetMsg(TimeMsg::ConstSharedPtr msg);
 
   void updateParameter(
@@ -164,7 +164,6 @@ private:
   uint64_t messageThresholdTime_{0};  // threshold time for sending message
   size_t messageThresholdSize_{0};    // threshold size for sending message
   EventPacketMsg::UniquePtr eventMsg_;
-  rclcpp::Time rosBaseTime_;
   rclcpp::Publisher<EventPacketMsg>::SharedPtr eventPub_;
   rclcpp::Publisher<ImuMsg>::SharedPtr imuPub_;
   rclcpp::Publisher<TimeMsg>::SharedPtr resetPub_;
