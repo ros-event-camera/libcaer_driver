@@ -33,7 +33,6 @@ namespace libcaer_driver
 {
 namespace message_converter
 {
-
 // returns number of events processed
 size_t convert_polarity_packet(
   event_camera_msgs::msg::EventPacket * msg, const libcaer::events::PolarityEventPacket & packet,
