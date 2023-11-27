@@ -30,11 +30,11 @@ def launch_setup(context, *args, **kwargs):
         package="libcaer_driver",
         executable="driver_node",
         output="screen",
-        # prefix=['xterm -e gdb -ex run --args'],
+        # prefix=["xterm -e gdb -ex run --args"],
         name=cam_name,
         parameters=[
             {
-                "device_type": "davis",
+                "device_type": "dvxplorer",  # "davis",
                 "device_id": 1,
                 "serial": "",
                 "statistics_print_interval": 2.0,
@@ -52,7 +52,9 @@ def generate_launch_description():
     """Create simple node by calling opaque function."""
     return launch.LaunchDescription(
         [
-            LaunchArg("camera_name", default_value=["event_camera"], description="camera name"),
+            LaunchArg(
+                "camera_name", default_value=["event_camera"], description="camera name"
+            ),
             OpaqueFunction(function=launch_setup),
         ]
     )

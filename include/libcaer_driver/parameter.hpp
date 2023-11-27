@@ -18,11 +18,14 @@
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace libcaer_driver
 {
-enum RosParamType { INVALID, INTEGER, BOOLEAN, DOUBLE };
+enum CaerParameterType { INTEGER, BOOLEAN, CF_BIAS, VDAC_BIAS, SHIFTED_SOURCE_BIAS};
+enum RosParameterType { ROS_INTEGER, ROS_BOOLEAN };
 
 union PVal {
   int32_t i;
@@ -69,30 +72,58 @@ struct Value
   }
 };
 
-struct Parameter
+struct ValueWithLimits
 {
-  Parameter(RosParamType t, uint8_t ma, uint8_t pa, bool s, int32_t def, int32_t nV, int32_t xV)
-  : type(t), modAddr(ma), paramAddr(pa), sexN(s)
-  {
-    defVal = def;
-    minVal = nV;
-    maxVal = xV;
-  }
-
-  using ParameterMap = std::map<std::string, const Parameter>;
-  static const ParameterMap & getMap(int deviceType);
-
-  // ------------- variables ------------------
-  RosParamType type{INVALID};
-  int8_t modAddr{0};
-  uint8_t paramAddr{0};
-  bool sexN{true};
-  Value defVal{0};  // default
-  Value minVal{0};  // min
-  Value maxVal{0};  // max
+  ValueWithLimits(Value cur, Value nv, Value xv) : curVal(cur), minVal(nv), maxVal(xv) {}
+  Value curVal{0};
+  Value minVal{0};
+  Value maxVal{0};
 };
 
-using ParameterMap = Parameter::ParameterMap;
+struct RosParameter
+{
+  explicit RosParameter(
+    const std::string & n, RosParameterType t, const ValueWithLimits & v,
+    const std::string & d = std::string(""))
+  : name(n), type(t), value(v), desc(d)
+  {
+  }
+  std::string name;
+  RosParameterType type{ROS_INTEGER};
+  ValueWithLimits value;
+  std::string desc;
+};
+
+class Parameter
+{
+public:
+  using Parameters = std::vector<std::shared_ptr<Parameter>>;
+  explicit Parameter(
+    const CaerParameterType & t, const std::string &n, int8_t ma, uint8_t pa)
+  : caerType_(t), name_(n), modAddr_(ma), paramAddr_(pa)
+  {
+  }
+  virtual ~Parameter() {}
+  // ------------- to be overridden by the derived classes
+  virtual Value getValue(const std::string & name) const = 0;
+  virtual std::vector<RosParameter> getRosParameters() const = 0;
+  // -------------
+  bool isHidden() const { return (name_.empty());}
+  const std::string &getName() const { return (name_); }
+  const std::string &getDescription() const { return (description_); }
+  CaerParameterType getCaerType() const { return (caerType_); }
+  int8_t getModAddr() const { return (modAddr_); }
+  uint8_t getParamAddr() const { return (paramAddr_); }
+  static std::shared_ptr<Parameters> instanceOfParameters(int16_t deviceType, int16_t chipID);
+protected:
+  CaerParameterType caerType_{CaerParameterType::INTEGER};
+  std::string name_;
+  std::string description_;
+  int8_t modAddr_{0};
+  uint8_t paramAddr_{0};
+};
+
+using Parameters = Parameter::Parameters;
 
 }  // namespace libcaer_driver
 

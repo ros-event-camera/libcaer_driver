@@ -31,8 +31,12 @@
 #include <thread>
 #include <utility>
 
-#include "libcaer_driver/callback_handler.hpp"
-#include "libcaer_driver/parameter.hpp"
+#include <libcaer_driver/callback_handler.hpp>
+#include <libcaer_driver/parameter.hpp>
+#include <libcaer_driver/coarse_fine_parameter.hpp>
+#include <libcaer_driver/vdac_parameter.hpp>
+#include <libcaer_driver/integer_parameter.hpp>
+#include <libcaer_driver/boolean_parameter.hpp>
 
 namespace libcaer_driver
 {
@@ -57,6 +61,36 @@ bool set_parameter<bool>(
 class LibcaerWrapper
 {
 public:
+  struct DevInfo
+  {
+    // -------- common to Davis and DVXplorer
+    int16_t deviceID{-1};
+    std::string deviceSerialNumber;
+    uint8_t deviceUSBBusNumber;
+    uint8_t deviceUSBDeviceAddress;
+    std::string deviceString;
+    int16_t firmwareVersion{-1};
+    int16_t logicVersion{-1};
+    int16_t chipID{-1};
+    bool deviceIsMaster{true};
+    bool muxHasStatistics{false};
+    int16_t dvsSizeX{0};
+    int16_t dvsSizeY{0};
+    bool dvsHasStatistics{false};
+    enum caer_imu_types imuType;
+    bool extInputHasGenerator{false};
+    // -------- only valid for Davis
+    bool dvsHasPixelFilter{false};
+    bool dvsHasBackgroundActivityFilter;
+    bool dvsHasROIFilter{false};
+    bool dvsHasSkipFilter{false};
+    bool dvsHasPolarityFilter{false};
+    int16_t apsSizeX{0};
+    int16_t apsSizeY{0};
+    enum caer_frame_event_color_filter apsColorFilter;
+    bool apsHasGlobalShutter{false};
+  };
+
   struct Stats
   {
     size_t msgsSent{0};
@@ -87,43 +121,35 @@ public:
 
   bool startSensor();
   void stopSensor();
-  uint32_t getWidth() const { return (static_cast<uint32_t>(width_)); }
-  uint32_t getHeight() const { return (static_cast<uint32_t>(height_)); }
-  const std::string & getSerialNumber() const { return (serialNumber_); }
-  bool isMaster() const { return (isMaster_); }
+  const DevInfo &getInfo() const { return (devInfo_);}
 
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
   void deviceDisconnected();
-  const ParameterMap & getParameters();
-  int32_t setIntegerParameter(const std::string & name, const Parameter & p, int32_t value);
+  void initializeParameters(CallbackHandler *h);
+  const Parameters &getParameters();
 
-  template <class T>
-  T setParameter(const std::string & name, const Parameter & p, T value)
-  {
-    return (detail::set_parameter<T>(this, name, p, value));
-  }
+  Value setCourseFineBias(const std::string &name, std::shared_ptr<CoarseFineParameter> p, int32_t targetBias);
+  Value setVDACBias(const std::string &name, std::shared_ptr<VDACParameter> p, int32_t targetBias);
+  Value setIntegerParameter(const std::string &name, std::shared_ptr<IntegerParameter> p, int32_t targetValue);
+  bool setBooleanParameter(std::shared_ptr<BooleanParameter> p, bool targetValue);
+
 
 private:
   void processingThread();
   void statsThread();
   void printStatistics();
-  int setCoarseFineBias(const std::string & name, const Parameter & p, int value);
   void startProcessingThread();
   void stopProcessingThread();
   void stopStatsThread();
   void processPacket(uint64_t nsSinceEpoch, const libcaer::events::EventPacket & packet);
-
+  uint32_t configGet(int8_t modAddr, uint8_t paramAddr);
   // ------------ variables
   CallbackHandler * callbackHandler_{nullptr};
-
-  int width_{0};   // image width
-  int height_{0};  // image height
-  std::string serialNumber_;
-  bool isMaster_{true};  // whether it is configured as master or not
-  std::unique_ptr<libcaer::devices::device> device_;
   int16_t deviceType_{0};
+  bool isMaster_{true};  // whether it is configured as master or not
+  DevInfo devInfo_;      // all device info
+  std::unique_ptr<libcaer::devices::device> device_;
   bool deviceRunning_{false};  // status of device
-  std::map<std::string, Parameter> biases_;
   // --  related to statistics
   double statsInterval_{2.0};  // time between printouts (seconds)
   std::chrono::time_point<std::chrono::system_clock> lastPrintTime_;

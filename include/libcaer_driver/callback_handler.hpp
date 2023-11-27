@@ -16,6 +16,7 @@
 #ifndef LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_
 #define LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_
 
+#include <libcaer_driver/parameter.hpp>
 #include <libcaercpp/events/frame.hpp>
 #include <libcaercpp/events/polarity.hpp>
 
@@ -26,6 +27,7 @@ class CallbackHandler
 public:
   CallbackHandler() {}
   virtual ~CallbackHandler() {}
+  virtual void declareParameter(const std::shared_ptr<Parameter> & p, const RosParameter & rp) = 0;
   virtual void polarityPacketCallback(
     uint64_t t, const libcaer::events::PolarityEventPacket & packet) = 0;
   virtual void framePacketCallback(
