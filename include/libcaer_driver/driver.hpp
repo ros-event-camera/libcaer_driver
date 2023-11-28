@@ -68,7 +68,7 @@ private:
   void resetMsg(TimeMsg::ConstSharedPtr msg);
 
   void updateParameter(
-  const std::string & name, const std::shared_ptr<Parameter> p, const rclcpp::ParameterValue & rp);
+  const std::string & name, std::shared_ptr<Parameter> p, const rclcpp::ParameterValue & rp);
 
   template <typename T>
   T get_or(const std::string & name, const T & def)

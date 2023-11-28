@@ -217,7 +217,7 @@ void Driver::declareParameter(const std::shared_ptr<Parameter> & p, const RosPar
 }
 
 void Driver::updateParameter(
-  const std::string & name, const std::shared_ptr<Parameter> p, const rclcpp::ParameterValue & rp)
+  const std::string & name, std::shared_ptr<Parameter> p, const rclcpp::ParameterValue & rp)
 {
   try {
     switch (p->getCaerType()) {
@@ -233,10 +233,12 @@ void Driver::updateParameter(
         }
         break;
       }
-      case CaerParameterType::BOOLEAN:
+      case CaerParameterType::BOOLEAN: {
         RCLCPP_INFO_STREAM(
           get_logger(), "updating bool " << name << " to " << static_cast<int>(rp.get<bool>()));
-        break;
+          auto bp = std::dynamic_pointer_cast<BooleanParameter>(p);
+          wrapper_->setBooleanParameter(bp, rp.get<bool>());
+        break;}
       case CaerParameterType::CF_BIAS: {
         auto cfb = std::dynamic_pointer_cast<CoarseFineParameter>(p);
         RCLCPP_INFO_STREAM(get_logger(), "updating bias " << name << " to " << rp.get<int>());
@@ -323,7 +325,6 @@ void Driver::configureSensor() {}
 
 void Driver::polarityPacketCallback(uint64_t t, const libcaer::events::PolarityEventPacket & packet)
 {
-  std::cout << "got polarity callback!" << std::endl;
   if (eventPub_->get_subscription_count() > 0) {
     if (!eventMsg_) {
       eventMsg_.reset(new EventPacketMsg());

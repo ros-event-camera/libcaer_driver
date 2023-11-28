@@ -133,7 +133,6 @@ public:
   Value setIntegerParameter(const std::string &name, std::shared_ptr<IntegerParameter> p, int32_t targetValue);
   bool setBooleanParameter(std::shared_ptr<BooleanParameter> p, bool targetValue);
 
-
 private:
   void processingThread();
   void statsThread();

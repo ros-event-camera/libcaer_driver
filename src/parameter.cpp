@@ -223,8 +223,8 @@ std::shared_ptr<Parameters> make_dvxplorer_parameters()
 {
   auto sp = std::make_shared<Parameters>();
   auto * p = sp.get();
-  // addBool(p, "dvs_enabled", DVX_DVS, DVX_DVS_RUN, true);
-  // addInt(p, "bias_sensitivity", DVX_DVS_CHIP_BIAS, DVX_DVS_CHIP_BIAS_SIMPLE, 2, 0, 4);
+  addBool(p, "dvs_enabled", DVX_DVS, DVX_DVS_RUN, true);
+  addInt(p, "bias_sensitivity", DVX_DVS_CHIP_BIAS, DVX_DVS_CHIP_BIAS_SIMPLE, 2, 0, 4);
   addBool(p, "polarity_flatten", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_FLATTEN, false);
   addBool(p, "polarity_on_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_ON_ONLY, false);
   addBool(p, "polarity_off_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_OFF_ONLY, false);
@@ -234,11 +234,11 @@ std::shared_ptr<Parameters> make_dvxplorer_parameters()
   addBool(p, "roi_enabled", DVX_DVS_CHIP_CROPPER, DVX_DVS_CHIP_CROPPER_ENABLE, false);
   addIntDvXCrop(p, "roi_start_col", DVX_DVS_CHIP_CROPPER_X_START_ADDRESS, 0, 0, 639);
   addIntDvXCrop(p, "roi_start_row", DVX_DVS_CHIP_CROPPER_Y_START_ADDRESS, 0, 0, 479);
-  addIntDvXCrop(p, "roi_end_col", DVX_DVS_CHIP_CROPPER_X_END_ADDRESS, 0, 0, 639);
-  addIntDvXCrop(p, "roi_end_row", DVX_DVS_CHIP_CROPPER_Y_END_ADDRESS, 0, 0, 479);
-  addBool(p, "imu_accel_enabled", DVX_DVS_CHIP, DVX_IMU_RUN_ACCELEROMETER, true);
-  addBool(p, "imu_gyro_enabled", DVX_DVS_CHIP, DVX_IMU_RUN_GYROSCOPE, true);
-  addIntDvXImu(p, "imu_acc_scale", DVX_IMU_ACCEL_RANGE, 1, 0, 3);
+  addIntDvXCrop(p, "roi_end_col", DVX_DVS_CHIP_CROPPER_X_END_ADDRESS, 639, 0, 639);
+  addIntDvXCrop(p, "roi_end_row", DVX_DVS_CHIP_CROPPER_Y_END_ADDRESS, 479, 0, 479);
+  addBool(p, "imu_accel_enabled", DVX_IMU, DVX_IMU_RUN_ACCELEROMETER, true);
+  addBool(p, "imu_gyro_enabled", DVX_IMU, DVX_IMU_RUN_GYROSCOPE, true);
+  addIntDvXImu(p, "imu_accel_scale", DVX_IMU_ACCEL_RANGE, 1, 0, 3);
   addIntDvXImu(p, "imu_gyro_scale", DVX_IMU_GYRO_RANGE, 2, 0, 4);
   return (sp);
 };

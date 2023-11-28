@@ -263,7 +263,6 @@ void LibcaerWrapper::processPacket(
   }
   switch (packet.getEventType()) {
     case POLARITY_EVENT: {
-      std::cout << "got polarity event!" << std::endl;
       const auto & ppacket = static_cast<const libcaer::events::PolarityEventPacket &>(packet);
       callbackHandler_->polarityPacketCallback(nsSinceEpoch, ppacket);
       {
@@ -361,7 +360,8 @@ Value LibcaerWrapper::setVDACBias(
 Value LibcaerWrapper::setIntegerParameter(
   const std::string & name, std::shared_ptr<IntegerParameter> p, int32_t targetValue)
 {
-  RCLCPP_INFO_STREAM(logger(), "setting param: " << name << " to " << p->getValue(name).get<int32_t>());
+  RCLCPP_INFO_STREAM(
+    logger(), "setting param: " << name << " to " << p->getValue(name).get<int32_t>());
   p->setValue(targetValue);
   device_->configSet(p->getModAddr(), p->getParamAddr(), p->getValue(name).get<int32_t>());
   uint32_t actualValue = targetValue;
@@ -374,12 +374,14 @@ Value LibcaerWrapper::setIntegerParameter(
   return (p->getValue(name));
 }
 
-bool LibcaerWrapper::setBooleanParameter(
-  std::shared_ptr<BooleanParameter> p, bool targetValue)
+bool LibcaerWrapper::setBooleanParameter(std::shared_ptr<BooleanParameter> p, bool targetValue)
 {
   p->setValue(targetValue);
   device_->configSet(p->getModAddr(), p->getParamAddr(), p->getValue());
-  return (targetValue); // assume the setting worked....
+  bool actualValue = configGet(p->getModAddr(), p->getParamAddr());
+  std::cout << "setting bool param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr())
+            << " to " << int(p->getValue()) << " set: " << int(actualValue) << std::endl;
+  return (actualValue);  // assume the setting worked....
 }
 
 uint32_t LibcaerWrapper::configGet(int8_t modAddr, uint8_t paramAddr)
@@ -420,7 +422,7 @@ void LibcaerWrapper::initializeParameters(CallbackHandler * h)
           throw(std::runtime_error("invalid parameter type!"));
           break;
       }
-    } catch (const std::runtime_error &e) {
+    } catch (const std::runtime_error & e) {
       RCLCPP_WARN_STREAM(logger(), "error initializing parameter " << p->getName());
     }
   }

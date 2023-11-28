@@ -34,7 +34,7 @@ public:
   {
     std::vector<RosParameter> p;
     if (!isHidden()) {
-      p.push_back(RosParameter(name_, ROS_BOOLEAN, ValueWithLimits(Value(true), Value(false), Value(true))));
+      p.push_back(RosParameter(name_, ROS_BOOLEAN, ValueWithLimits(value_, Value(false), Value(true))));
     }
     return (p);
   }
