@@ -99,8 +99,8 @@ class Parameter
 public:
   using Parameters = std::vector<std::shared_ptr<Parameter>>;
   explicit Parameter(
-    const CaerParameterType & t, const std::string &n, int8_t ma, uint8_t pa)
-  : caerType_(t), name_(n), modAddr_(ma), paramAddr_(pa)
+    const CaerParameterType & t, const std::string &n, int8_t ma, uint8_t pa, bool rb = true)
+  : caerType_(t), name_(n), modAddr_(ma), paramAddr_(pa), readBack_(rb)
   {
   }
   virtual ~Parameter() {}
@@ -114,6 +114,7 @@ public:
   CaerParameterType getCaerType() const { return (caerType_); }
   int8_t getModAddr() const { return (modAddr_); }
   uint8_t getParamAddr() const { return (paramAddr_); }
+  bool readBack() const { return (readBack_); }
   static std::shared_ptr<Parameters> instanceOfParameters(int16_t deviceType, int16_t chipID);
 protected:
   CaerParameterType caerType_{CaerParameterType::INTEGER};
@@ -121,6 +122,7 @@ protected:
   std::string description_;
   int8_t modAddr_{0};
   uint8_t paramAddr_{0};
+  bool readBack_{true}; // this parameter can be read back
 };
 
 using Parameters = Parameter::Parameters;

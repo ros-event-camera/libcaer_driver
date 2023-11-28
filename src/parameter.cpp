@@ -40,9 +40,9 @@ static void addBool(
 
 static void addInt(
   Parameters * p, const std::string & name, int8_t modAddr, uint8_t paramAddr, int32_t def,
-  int32_t vn, int32_t vx)
+  int32_t vn, int32_t vx, bool rb = true)
 {
-  p->push_back(std::make_shared<IntegerParameter>(name, modAddr, paramAddr, def, vn, vx));
+  p->push_back(std::make_shared<IntegerParameter>(name, modAddr, paramAddr, def, vn, vx, rb));
 }
 
 static void addCFB(
@@ -130,7 +130,8 @@ static void addIntDvXChip(
 static void addIntDvXCrop(
   Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
 {
-  return (addInt(p, name, DVX_DVS_CHIP_CROPPER, paramAddr, def, vn, vx));
+  // reading back the row values returns the original ones even though the parameters are set...
+  return (addInt(p, name, DVX_DVS_CHIP_CROPPER, paramAddr, def, vn, vx, false));
 }
 static void addIntDvXImu(
   Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
@@ -224,7 +225,8 @@ std::shared_ptr<Parameters> make_dvxplorer_parameters()
   auto sp = std::make_shared<Parameters>();
   auto * p = sp.get();
   addBool(p, "dvs_enabled", DVX_DVS, DVX_DVS_RUN, true);
-  addInt(p, "bias_sensitivity", DVX_DVS_CHIP_BIAS, DVX_DVS_CHIP_BIAS_SIMPLE, 2, 0, 4);
+  // for some reason the bias sensitivity cannot be read from the device with libcaer
+  addInt(p, "bias_sensitivity", DVX_DVS_CHIP_BIAS, DVX_DVS_CHIP_BIAS_SIMPLE, 2, 0, 4, false);
   addBool(p, "polarity_flatten", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_FLATTEN, false);
   addBool(p, "polarity_on_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_ON_ONLY, false);
   addBool(p, "polarity_off_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_OFF_ONLY, false);

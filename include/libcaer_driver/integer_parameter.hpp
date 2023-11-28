@@ -24,8 +24,8 @@ class IntegerParameter : public Parameter
 {
 public:
   explicit IntegerParameter(const std::string &name,
-    int8_t ma, uint8_t pa, int32_t v, int32_t vn, int32_t vx)
-  : Parameter(CaerParameterType::INTEGER, name, ma, pa),
+    int8_t ma, uint8_t pa, int32_t v, int32_t vn, int32_t vx, bool rb = true)
+  : Parameter(CaerParameterType::INTEGER, name, ma, pa, rb),
     valueWithLimits_(Value(v), Value(vn), Value(vx))
   {
   }
@@ -47,6 +47,9 @@ public:
 
   void setValue(int32_t b) {
     valueWithLimits_.curVal = Value(b);
+  }
+  int32_t getValue() {
+    return (valueWithLimits_.curVal.get<int>());
   }
 
   ValueWithLimits & getValueWithLimits()

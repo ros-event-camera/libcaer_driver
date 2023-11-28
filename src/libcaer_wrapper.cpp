@@ -360,18 +360,26 @@ Value LibcaerWrapper::setVDACBias(
 Value LibcaerWrapper::setIntegerParameter(
   const std::string & name, std::shared_ptr<IntegerParameter> p, int32_t targetValue)
 {
-  RCLCPP_INFO_STREAM(
-    logger(), "setting param: " << name << " to " << p->getValue(name).get<int32_t>());
   p->setValue(targetValue);
-  device_->configSet(p->getModAddr(), p->getParamAddr(), p->getValue(name).get<int32_t>());
-  uint32_t actualValue = targetValue;
-  try {
-    actualValue = configGet(p->getModAddr(), p->getParamAddr());
-    p->setValue(actualValue);
-  } catch (const std::runtime_error & e) {
-    RCLCPP_INFO_STREAM(logger(), "cannot read back param: " << name << " " << e.what());
+  RCLCPP_INFO_STREAM(logger(), "setting param: " << name << " to " << p->getValue());
+  device_->configSet(p->getModAddr(), p->getParamAddr(), p->getValue());
+  if (p->readBack()) {
+    try {
+      p->setValue(configGet(p->getModAddr(), p->getParamAddr()));
+      if (p->getValue() != targetValue) {
+        RCLCPP_WARN_STREAM(
+          logger(), "libcaer adjusted parameter " << p->getName() << " from desired " << targetValue
+                                                  << " to " << p->getValue());
+      }
+    } catch (const std::runtime_error & e) {
+      RCLCPP_INFO_STREAM(logger(), "cannot read back param: " << name << " " << e.what());
+    }
   }
-  return (p->getValue(name));
+  RCLCPP_INFO_STREAM(
+    logger(), "set int param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr()) << " to "
+                                << targetValue << " set: " << p->getValue());
+
+  return (Value(p->getValue()));
 }
 
 bool LibcaerWrapper::setBooleanParameter(std::shared_ptr<BooleanParameter> p, bool targetValue)
@@ -379,8 +387,9 @@ bool LibcaerWrapper::setBooleanParameter(std::shared_ptr<BooleanParameter> p, bo
   p->setValue(targetValue);
   device_->configSet(p->getModAddr(), p->getParamAddr(), p->getValue());
   bool actualValue = configGet(p->getModAddr(), p->getParamAddr());
-  std::cout << "setting bool param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr())
-            << " to " << int(p->getValue()) << " set: " << int(actualValue) << std::endl;
+  RCLCPP_INFO_STREAM(
+    logger(), "set bool param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr()) << " to "
+                                 << int(p->getValue()) << " set: " << int(actualValue));
   return (actualValue);  // assume the setting worked....
 }
 
