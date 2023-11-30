@@ -63,6 +63,10 @@ class LibcaerWrapper
 public:
   struct DevInfo
   {
+    // --------- common fields indicating device properties
+    bool hasDVS{false};
+    bool hasIMU{false};
+    bool hasAPS{false};
     // -------- common to Davis and DVXplorer
     int16_t deviceID{-1};
     std::string deviceSerialNumber;

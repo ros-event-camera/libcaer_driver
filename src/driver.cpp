@@ -29,15 +29,16 @@ namespace libcaer_driver
 {
 template <class T>
 void set_range(
-  rcl_interfaces::msg::ParameterDescriptor::_floating_point_range_type *, rcl_interfaces::msg::ParameterDescriptor::_integer_range_type *, const T &,
-  const T &, const T &)
+  rcl_interfaces::msg::ParameterDescriptor::_floating_point_range_type *,
+  rcl_interfaces::msg::ParameterDescriptor::_integer_range_type *, const T &, const T &, const T &)
 {
 }
 
 template <>
 void set_range<int32_t>(
-  rcl_interfaces::msg::ParameterDescriptor::_floating_point_range_type *, rcl_interfaces::msg::ParameterDescriptor::_integer_range_type *irange,
-  const int32_t & nv, const int32_t & xv, const int32_t & step)
+  rcl_interfaces::msg::ParameterDescriptor::_floating_point_range_type *,
+  rcl_interfaces::msg::ParameterDescriptor::_integer_range_type * irange, const int32_t & nv,
+  const int32_t & xv, const int32_t & step)
 {
   rcl_interfaces::msg::IntegerRange ir;
   ir.from_value = nv;
@@ -66,8 +67,8 @@ static T declare_ros_parameter(Driver * node, const RosParameter & p)
       }
     } else {
       set_range<T>(
-        &desc.floating_point_range, &desc.integer_range, vvl.minVal.get<T>(),
-        vvl.maxVal.get<T>(), 1);
+        &desc.floating_point_range, &desc.integer_range, vvl.minVal.get<T>(), vvl.maxVal.get<T>(),
+        1);
       rawV = node->declare_parameter(p.name, vvl.curVal.get<T>(), desc, false);
     }
     v = std::clamp<T>(rawV, vvl.minVal.get<T>(), vvl.maxVal.get<T>());
@@ -96,15 +97,6 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   messageThresholdSize_ =
     static_cast<size_t>(std::abs(get_or("event_message_size_threshold", int64_t(1000000000))));
 
-  eventPub_ = this->create_publisher<EventPacketMsg>(
-    "~/events", rclcpp::QoS(rclcpp::KeepLast(get_or("send_queue_size", 1000)))
-                  .best_effort()
-                  .durability_volatile());
-  imuPub_ = this->create_publisher<ImuMsg>(
-    "~/imu", rclcpp::QoS(rclcpp::KeepLast(get_or("imu_send_queue_size", 10)))
-               .best_effort()
-               .durability_volatile());
-
   const std::string deviceType = get_or("device_type", std::string("davis"));
   try {
     wrapper_.reset(new LibcaerWrapper());
@@ -113,6 +105,18 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   } catch (std::runtime_error & e) {
     RCLCPP_ERROR_STREAM(get_logger(), "sensor initialization failed: " << e.what());
     throw(e);
+  }
+  if (wrapper_->getInfo().hasDVS) {
+    eventPub_ = this->create_publisher<EventPacketMsg>(
+      "~/events", rclcpp::QoS(rclcpp::KeepLast(get_or("send_queue_size", 1000)))
+                    .best_effort()
+                    .durability_volatile());
+  }
+  if (wrapper_->getInfo().hasIMU) {
+    imuPub_ = this->create_publisher<ImuMsg>(
+      "~/imu", rclcpp::QoS(rclcpp::KeepLast(get_or("imu_send_queue_size", 10)))
+                 .best_effort()
+                 .durability_volatile());
   }
 
   wrapper_->initializeParameters(this);
@@ -236,9 +240,10 @@ void Driver::updateParameter(
       case CaerParameterType::BOOLEAN: {
         RCLCPP_INFO_STREAM(
           get_logger(), "updating bool " << name << " to " << static_cast<int>(rp.get<bool>()));
-          auto bp = std::dynamic_pointer_cast<BooleanParameter>(p);
-          wrapper_->setBooleanParameter(bp, rp.get<bool>());
-        break;}
+        auto bp = std::dynamic_pointer_cast<BooleanParameter>(p);
+        wrapper_->setBooleanParameter(bp, rp.get<bool>());
+        break;
+      }
       case CaerParameterType::CF_BIAS: {
         auto cfb = std::dynamic_pointer_cast<CoarseFineParameter>(p);
         RCLCPP_INFO_STREAM(get_logger(), "updating bias " << name << " to " << rp.get<int>());

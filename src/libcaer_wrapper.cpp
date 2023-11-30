@@ -154,9 +154,15 @@ static std::unique_ptr<libcaer::devices::device> open_device(
   switch (dr.deviceType) {
     case CAER_DEVICE_DAVIS:
       p = open_dev<libcaer::devices::davis, caer_davis_info>(logger, deviceId, restrictSN, info);
+      info->hasDVS = true;
+      info->hasIMU = true;
+      info->hasAPS = true;
       break;
     case CAER_DEVICE_DVXPLORER:
       p = open_dev<libcaer::devices::dvXplorer, caer_dvx_info>(logger, deviceId, restrictSN, info);
+      info->hasDVS = true;
+      info->hasIMU = true;
+      info->hasAPS = false;
       break;
     default:
       RCLCPP_ERROR(logger, "found device of unsupported type: %d", dr.deviceType);
@@ -171,21 +177,22 @@ static void log_all_devices()
   const auto all_devices = libcaer::devices::discover::all();
   if (all_devices.empty()) {
     RCLCPP_ERROR(logger(), "found no devices!");
-  }
-  RCLCPP_INFO_STREAM(logger(), "found devices: " << all_devices.size());
-  for (const auto & dev : all_devices) {
-    std::string devInfo("unknown device type");
-    switch (dev.deviceType) {
-      case CAER_DEVICE_DAVIS:
-        devInfo = "DAVIS SN: " + std::string(dev.deviceInfo.davisInfo.deviceSerialNumber);
-        break;
-      case CAER_DEVICE_DVXPLORER:
-        devInfo = "DVXPLORER SN: " + std::string(dev.deviceInfo.dvXplorerInfo.deviceSerialNumber);
-        break;
-      default:
-        break;
+  } else {
+    RCLCPP_INFO_STREAM(logger(), "found devices: " << all_devices.size());
+    for (const auto & dev : all_devices) {
+      std::string devInfo("unknown device type");
+      switch (dev.deviceType) {
+        case CAER_DEVICE_DAVIS:
+          devInfo = "DAVIS SN: " + std::string(dev.deviceInfo.davisInfo.deviceSerialNumber);
+          break;
+        case CAER_DEVICE_DVXPLORER:
+          devInfo = "DVXPLORER SN: " + std::string(dev.deviceInfo.dvXplorerInfo.deviceSerialNumber);
+          break;
+        default:
+          break;
+      }
+      RCLCPP_INFO(logger(), "found device: %-30s", devInfo.c_str());
     }
-    RCLCPP_INFO(logger(), "found device: %-30s", devInfo.c_str());
   }
 }
 
