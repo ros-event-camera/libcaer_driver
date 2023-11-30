@@ -23,6 +23,13 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <libcaer_driver/boolean_parameter.hpp>
+#include <libcaer_driver/callback_handler.hpp>
+#include <libcaer_driver/coarse_fine_parameter.hpp>
+#include <libcaer_driver/device_info.hpp>
+#include <libcaer_driver/integer_parameter.hpp>
+#include <libcaer_driver/parameter.hpp>
+#include <libcaer_driver/vdac_parameter.hpp>
 #include <libcaercpp/devices/device.hpp>
 #include <map>
 #include <memory>
@@ -30,13 +37,6 @@
 #include <string>
 #include <thread>
 #include <utility>
-
-#include <libcaer_driver/callback_handler.hpp>
-#include <libcaer_driver/parameter.hpp>
-#include <libcaer_driver/coarse_fine_parameter.hpp>
-#include <libcaer_driver/vdac_parameter.hpp>
-#include <libcaer_driver/integer_parameter.hpp>
-#include <libcaer_driver/boolean_parameter.hpp>
 
 namespace libcaer_driver
 {
@@ -61,40 +61,6 @@ bool set_parameter<bool>(
 class LibcaerWrapper
 {
 public:
-  struct DevInfo
-  {
-    // --------- common fields indicating device properties
-    bool hasDVS{false};
-    bool hasIMU{false};
-    bool hasAPS{false};
-    // -------- common to Davis and DVXplorer
-    int16_t deviceID{-1};
-    std::string deviceSerialNumber;
-    uint8_t deviceUSBBusNumber;
-    uint8_t deviceUSBDeviceAddress;
-    std::string deviceString;
-    int16_t firmwareVersion{-1};
-    int16_t logicVersion{-1};
-    int16_t chipID{-1};
-    bool deviceIsMaster{true};
-    bool muxHasStatistics{false};
-    int16_t dvsSizeX{0};
-    int16_t dvsSizeY{0};
-    bool dvsHasStatistics{false};
-    enum caer_imu_types imuType;
-    bool extInputHasGenerator{false};
-    // -------- only valid for Davis
-    bool dvsHasPixelFilter{false};
-    bool dvsHasBackgroundActivityFilter;
-    bool dvsHasROIFilter{false};
-    bool dvsHasSkipFilter{false};
-    bool dvsHasPolarityFilter{false};
-    int16_t apsSizeX{0};
-    int16_t apsSizeY{0};
-    enum caer_frame_event_color_filter apsColorFilter;
-    bool apsHasGlobalShutter{false};
-  };
-
   struct Stats
   {
     size_t msgsSent{0};
@@ -125,16 +91,18 @@ public:
 
   bool startSensor();
   void stopSensor();
-  const DevInfo &getInfo() const { return (devInfo_);}
+  const DeviceInfo & getDeviceInfo() const { return (deviceInfo_); }
 
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
   void deviceDisconnected();
-  void initializeParameters(CallbackHandler *h);
-  const Parameters &getParameters();
+  void initializeParameters(CallbackHandler * h);
+  const Parameters & getParameters();
 
-  Value setCourseFineBias(const std::string &name, std::shared_ptr<CoarseFineParameter> p, int32_t targetBias);
-  Value setVDACBias(const std::string &name, std::shared_ptr<VDACParameter> p, int32_t targetBias);
-  Value setIntegerParameter(const std::string &name, std::shared_ptr<IntegerParameter> p, int32_t targetValue);
+  Value setCourseFineBias(
+    const std::string & name, std::shared_ptr<CoarseFineParameter> p, int32_t targetBias);
+  Value setVDACBias(const std::string & name, std::shared_ptr<VDACParameter> p, int32_t targetBias);
+  Value setIntegerParameter(
+    const std::string & name, std::shared_ptr<IntegerParameter> p, int32_t targetValue);
   bool setBooleanParameter(std::shared_ptr<BooleanParameter> p, bool targetValue);
 
 private:
@@ -149,8 +117,8 @@ private:
   // ------------ variables
   CallbackHandler * callbackHandler_{nullptr};
   int16_t deviceType_{0};
-  bool isMaster_{true};  // whether it is configured as master or not
-  DevInfo devInfo_;      // all device info
+  bool isMaster_{true};    // whether it is configured as master or not
+  DeviceInfo deviceInfo_;  // all device info
   std::unique_ptr<libcaer::devices::device> device_;
   bool deviceRunning_{false};  // status of device
   // --  related to statistics

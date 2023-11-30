@@ -90,7 +90,7 @@ void LibcaerWrapper::stopProcessingThread()
 }
 
 template <class T>
-void copy_common_fields(LibcaerWrapper::DevInfo * out, const T & info)
+void copy_common_fields(DeviceInfo * out, const T & info)
 {
   out->deviceID = info.deviceID;
   out->deviceSerialNumber = info.deviceSerialNumber;
@@ -110,14 +110,14 @@ void copy_common_fields(LibcaerWrapper::DevInfo * out, const T & info)
 }
 
 template <class T>
-void copy_specific_fields(LibcaerWrapper::DevInfo *, const T &)
+void copy_specific_fields(DeviceInfo *, const T &)
 {
   // nothing specific to copy (dvXplorer)
 }
 
 // specialize template for davis
 template <>
-void copy_specific_fields(LibcaerWrapper::DevInfo * out, const caer_davis_info & info)
+void copy_specific_fields(DeviceInfo * out, const caer_davis_info & info)
 {
   out->dvsHasPixelFilter = info.dvsHasPixelFilter;
   out->dvsHasBackgroundActivityFilter = info.dvsHasBackgroundActivityFilter;
@@ -133,7 +133,7 @@ void copy_specific_fields(LibcaerWrapper::DevInfo * out, const caer_davis_info &
 template <class T, class I>
 std::unique_ptr<T> open_dev(
   rclcpp::Logger logger, int16_t deviceId, const std::string & restrictSN,
-  LibcaerWrapper::DevInfo * di)
+  DeviceInfo * di)
 {
   auto p = std::make_unique<T>(deviceId, 0 /*usb bus*/, 0 /*usb dev*/, restrictSN);
   const auto info = reinterpret_cast<T *>(p.get())->infoGet();
@@ -147,7 +147,7 @@ std::unique_ptr<T> open_dev(
 
 static std::unique_ptr<libcaer::devices::device> open_device(
   rclcpp::Logger logger, int16_t deviceId, const caer_device_discovery_result & dr,
-  const std::string & restrictSN, LibcaerWrapper::DevInfo * info)
+  const std::string & restrictSN, DeviceInfo * info)
 {
   std::unique_ptr<libcaer::devices::device> p;
 
@@ -210,7 +210,7 @@ void LibcaerWrapper::initialize(
   for (int i = 0; i < num_tries; i++) {
     auto devices = libcaer::devices::discover::device(deviceType_);
     for (const auto & dev : devices) {
-      device_ = open_device(logger(), deviceId, dev, restrictSN, &devInfo_);
+      device_ = open_device(logger(), deviceId, dev, restrictSN, &deviceInfo_);
       if (device_) {
         break;
       }
@@ -447,7 +447,7 @@ void LibcaerWrapper::initializeParameters(CallbackHandler * h)
 const Parameters & LibcaerWrapper::getParameters()
 {
   try {
-    auto ptr = Parameter::instanceOfParameters(deviceType_, devInfo_.chipID);
+    auto ptr = Parameter::instanceOfParameters(deviceType_, deviceInfo_.chipID);
     return (*ptr);
   } catch (const std::runtime_error & e) {
     RCLCPP_ERROR_STREAM(logger(), "no parameters defined for device " << deviceType_);

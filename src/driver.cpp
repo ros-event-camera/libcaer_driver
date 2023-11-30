@@ -106,13 +106,13 @@ Driver::Driver(const rclcpp::NodeOptions & options)
     RCLCPP_ERROR_STREAM(get_logger(), "sensor initialization failed: " << e.what());
     throw(e);
   }
-  if (wrapper_->getInfo().hasDVS) {
+  if (wrapper_->getDeviceInfo().hasDVS) {
     eventPub_ = this->create_publisher<EventPacketMsg>(
       "~/events", rclcpp::QoS(rclcpp::KeepLast(get_or("send_queue_size", 1000)))
                     .best_effort()
                     .durability_volatile());
   }
-  if (wrapper_->getInfo().hasIMU) {
+  if (wrapper_->getDeviceInfo().hasIMU) {
     imuPub_ = this->create_publisher<ImuMsg>(
       "~/imu", rclcpp::QoS(rclcpp::KeepLast(get_or("imu_send_queue_size", 10)))
                  .best_effort()
@@ -123,13 +123,13 @@ Driver::Driver(const rclcpp::NodeOptions & options)
 
   isMaster_ = get_or<bool>("master", true);
   if (isMaster_) {
-    if (!wrapper_->getInfo().deviceIsMaster) {
+    if (!wrapper_->getDeviceInfo().deviceIsMaster) {
       RCLCPP_WARN(get_logger(), "this device should be master, but the hardware says it's not!");
     }
     resetPub_ =
       this->create_publisher<TimeMsg>("~/reset_timestamps", rclcpp::QoS(rclcpp::KeepLast(10)));
   } else {
-    if (wrapper_->getInfo().deviceIsMaster) {
+    if (wrapper_->getDeviceInfo().deviceIsMaster) {
       RCLCPP_WARN(get_logger(), "this device should be slave, but the hardware says it's not!");
     }
 
@@ -142,10 +142,10 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   // ------ get other parameters from camera
   cameraFrameId_ = get_or<std::string>("camera_frame_id", "camera");
   imuFrameId_ = get_or<std::string>("imu_frame_id", "imu");
-  dvsWidth_ = wrapper_->getInfo().dvsSizeX;
-  dvsHeight_ = wrapper_->getInfo().dvsSizeY;
-  apsWidth_ = wrapper_->getInfo().apsSizeX;
-  apsHeight_ = wrapper_->getInfo().apsSizeY;
+  dvsWidth_ = wrapper_->getDeviceInfo().dvsSizeX;
+  dvsHeight_ = wrapper_->getDeviceInfo().dvsSizeY;
+  apsWidth_ = wrapper_->getDeviceInfo().apsSizeX;
+  apsHeight_ = wrapper_->getDeviceInfo().apsSizeY;
 
   RCLCPP_INFO_STREAM(
     get_logger(), "res: " << dvsWidth_ << " x " << dvsHeight_ << " camera frame: " << cameraFrameId_
@@ -178,7 +178,7 @@ void Driver::resetMsg(TimeMsg::ConstSharedPtr)
 {
   // This message should only be received by the slave
   if (wrapper_) {
-    if (wrapper_->getInfo().deviceIsMaster) {
+    if (wrapper_->getDeviceInfo().deviceIsMaster) {
       RCLCPP_WARN(get_logger(), "master received a time reset message, why?");
     }
   }

@@ -19,6 +19,7 @@
 #include <libcaer_driver/parameter.hpp>
 #include <libcaercpp/events/frame.hpp>
 #include <libcaercpp/events/polarity.hpp>
+#include <libcaercpp/events/imu6.hpp>
 
 namespace libcaer_driver
 {
