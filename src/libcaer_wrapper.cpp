@@ -302,7 +302,6 @@ void LibcaerWrapper::setIntegerParameter(std::shared_ptr<IntegerParameter> p)
 {
   const auto & name = p->getName();
   const auto targetValue = p->getValue();
-  LOG_INFO("setting param: " << name << " to " << p->getValue());
   device_->configSet(p, p->getValue());
   if (p->readBack()) {
     try {
@@ -316,9 +315,6 @@ void LibcaerWrapper::setIntegerParameter(std::shared_ptr<IntegerParameter> p)
       LOG_WARN("cannot read back param: " << name << " " << e.what());
     }
   }
-  LOG_INFO(
-    "set int param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr()) << " to "
-                      << targetValue << " set: " << p->getValue());
 }
 
 void LibcaerWrapper::setBooleanParameter(std::shared_ptr<BooleanParameter> p)
@@ -332,9 +328,6 @@ void LibcaerWrapper::setBooleanParameter(std::shared_ptr<BooleanParameter> p)
       LOG_WARN("libcaer could not set parameter " << p->getName());
     }
   }
-  LOG_INFO(
-    "set bool param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr()) << " to "
-                       << (p->getValue() ? "True" : "False"));
 }
 
 void LibcaerWrapper::initializeParameters(CallbackHandler * h)

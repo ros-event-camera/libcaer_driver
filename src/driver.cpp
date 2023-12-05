@@ -174,7 +174,7 @@ void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
       LOG_INFO(name << " is outside limits, adjusted " << vRos << " -> " << vClamped);
       this->set_parameter(rclcpp::Parameter(name, vClamped));
     } else {
-      LOG_INFO("parameter " << name << " initialized with value " << vRos);
+      LOG_INFO_FMT("%-25s set to: %5d", name.c_str(), vRos);
     }
   } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
     LOG_WARN("overwriting bad param with default: " + std::string(e.what()));
@@ -199,8 +199,7 @@ void Driver::declareRosParameter(const std::shared_ptr<RosBoolParameter> & rp)
     } else {
       p->setValue(this->declare_parameter(name, p->getValue(), desc, false));
     }
-    LOG_INFO(
-      "parameter " << name << " initialized with value " << (p->getValue() ? "True" : "False"));
+    LOG_INFO_FMT("%-25s set to: %5s", name.c_str(), (p->getValue() ? "True" : "False"));
   } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
     LOG_WARN("overwriting bad param with default: " + std::string(e.what()));
     this->declare_parameter(name, p->getValue(), desc, true);

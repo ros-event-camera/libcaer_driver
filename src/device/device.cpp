@@ -117,7 +117,6 @@ Devices Device::logAllDevices()
           break;
       }
       LOG_INFO_FMT("found device: %-30s of type %d", devInfo.c_str(), dev.deviceType);
-      return (devices);
     }
   }
   return (devices);
