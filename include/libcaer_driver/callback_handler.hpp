@@ -18,8 +18,8 @@
 
 #include <libcaer_driver/parameter/parameter.hpp>
 #include <libcaercpp/events/frame.hpp>
-#include <libcaercpp/events/polarity.hpp>
 #include <libcaercpp/events/imu6.hpp>
+#include <libcaercpp/events/polarity.hpp>
 
 namespace libcaer_driver
 {
@@ -28,7 +28,7 @@ class CallbackHandler
 public:
   CallbackHandler() {}
   virtual ~CallbackHandler() {}
-  virtual void declareParameterCallback(const std::shared_ptr<RosParameter> &rp) = 0;
+  virtual void declareParameterCallback(const std::shared_ptr<RosParameter> & rp) = 0;
   virtual void deviceDisconnectedCallback() = 0;
   virtual void polarityPacketCallback(
     uint64_t t, const libcaer::events::PolarityEventPacket & packet) = 0;

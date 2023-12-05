@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__INTEGER_PARAMETER_HPP_
-#define LIBCAER_DRIVER__INTEGER_PARAMETER_HPP_
+#ifndef LIBCAER_DRIVER__PARAMETER__INTEGER_PARAMETER_HPP_
+#define LIBCAER_DRIVER__PARAMETER__INTEGER_PARAMETER_HPP_
 
 #include <libcaer_driver/parameter/parameter.hpp>
 #include <libcaer_driver/parameter/ros_parameter.hpp>
@@ -31,7 +31,8 @@ public:
   {
   }
   // ------- inherited methods
-  std::vector<std::shared_ptr<RosParameter>> makeRosParameters(const std::shared_ptr<Parameter> & pa) const override
+  std::vector<std::shared_ptr<RosParameter>> makeRosParameters(
+    const std::shared_ptr<Parameter> & pa) const override
   {
     std::vector<std::shared_ptr<RosParameter>> p;
     if (!isHidden()) {
@@ -57,4 +58,4 @@ private:
 
 }  // namespace libcaer_driver
 
-#endif  // LIBCAER_DRIVER__INTEGER_PARAMETER_HPP_
+#endif  // LIBCAER_DRIVER__PARAMETER__INTEGER_PARAMETER_HPP_

@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__BOOLEAN_PARAMETER_HPP_
-#define LIBCAER_DRIVER__BOOLEAN_PARAMETER_HPP_
+#ifndef LIBCAER_DRIVER__PARAMETER__BOOLEAN_PARAMETER_HPP_
+#define LIBCAER_DRIVER__PARAMETER__BOOLEAN_PARAMETER_HPP_
 
 #include <libcaer_driver/parameter/parameter.hpp>
 #include <libcaer_driver/parameter/ros_parameter.hpp>
@@ -24,7 +24,8 @@ namespace libcaer_driver
 class BooleanParameter : public Parameter
 {
 public:
-  explicit BooleanParameter(const std::string & name, int8_t ma, uint8_t pa, bool v, bool rb = false)
+  explicit BooleanParameter(
+    const std::string & name, int8_t ma, uint8_t pa, bool v, bool rb = false)
   : Parameter(CaerParameterType::BOOLEAN, name, ma, pa, rb), value_(v)
   {
   }
@@ -51,4 +52,4 @@ private:
 
 }  // namespace libcaer_driver
 
-#endif  // LIBCAER_DRIVER__BOOLEAN_PARAMETER_HPP_
+#endif  // LIBCAER_DRIVER__PARAMETER__BOOLEAN_PARAMETER_HPP_

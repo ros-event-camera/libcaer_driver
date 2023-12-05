@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__ROS_PARAMETER_HPP_
-#define LIBCAER_DRIVER__ROS_PARAMETER_HPP_
+#ifndef LIBCAER_DRIVER__PARAMETER__ROS_PARAMETER_HPP_
+#define LIBCAER_DRIVER__PARAMETER__ROS_PARAMETER_HPP_
 
 #include <algorithm>  // for std::clamp
 #include <cstdint>
@@ -33,11 +33,11 @@ class RosParameter
 public:
   RosParameter(
     RosParameterType t, const std::string & name, const std::string & desc,
-    const std::shared_ptr<Parameter> &p, Field f)
+    const std::shared_ptr<Parameter> & p, Field f)
   : type_(t), name_(name), desc_(desc), param_(p), field_(f)
   {
   }
-  virtual ~RosParameter() {};
+  virtual ~RosParameter() {}
   const RosParameterType & getType() const { return (type_); }
   void setParameter(const std::shared_ptr<Parameter> & p) { param_ = p; }
   const std::string & getName() const { return (name_); }
@@ -48,7 +48,7 @@ public:
 protected:
   RosParameterType type_{ROS_INVALID};
   std::string name_;
-  std::string desc_;  // description
+  std::string desc_;                  // description
   std::shared_ptr<Parameter> param_;  // pointer to libcaer parameter
   Field field_{FIELD_INT};
 };
@@ -58,8 +58,7 @@ class RosIntParameter : public RosParameter
 public:
   explicit RosIntParameter(
     const std::string & name, int32_t v, int32_t vMin, int32_t vMax, const std::string & desc,
-    const std::shared_ptr<Parameter> &p,
-    Field f)
+    const std::shared_ptr<Parameter> & p, Field f)
   : RosParameter(ROS_INT, name, desc, p, f), v_(v), vMin_(vMin), vMax_(vMax)
   {
   }
@@ -77,8 +76,9 @@ private:
 class RosBoolParameter : public RosParameter
 {
 public:
-  explicit RosBoolParameter(const std::string & name, bool v, const std::string & desc,
-      const std::shared_ptr<Parameter> &p, Field f)
+  explicit RosBoolParameter(
+    const std::string & name, bool v, const std::string & desc,
+    const std::shared_ptr<Parameter> & p, Field f)
   : RosParameter(ROS_BOOL, name, desc, p, f), v_(v)
   {
   }
@@ -89,4 +89,4 @@ private:
 
 }  // namespace libcaer_driver
 
-#endif  // LIBCAER_DRIVER__ROS_PARAMETER_HPP_
+#endif  // LIBCAER_DRIVER__PARAMETER__ROS_PARAMETER_HPP_

@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__PARAMETER_HPP_
-#define LIBCAER_DRIVER__PARAMETER_HPP_
+#ifndef LIBCAER_DRIVER__PARAMETER__PARAMETER_HPP_
+#define LIBCAER_DRIVER__PARAMETER__PARAMETER_HPP_
 
 #include <cstdint>
 #include <map>
@@ -41,7 +41,13 @@ class RosParameter;  // forward decl
 class Parameter
 {
 public:
-  using Parameters = std::vector<std::shared_ptr<Parameter>>;
+  struct ParameterVector : public std::vector<std::shared_ptr<Parameter>>
+  {
+    inline void add(const value_type & v) { push_back(v); }
+  };
+
+  using Parameters = ParameterVector;
+
   explicit Parameter(
     const CaerParameterType & t, const std::string & n, int8_t ma, uint8_t pa, bool rb = true)
   : caerType_(t), name_(n), modAddr_(ma), paramAddr_(pa), readBack_(rb)
@@ -75,4 +81,4 @@ using Parameters = Parameter::Parameters;
 
 }  // namespace libcaer_driver
 
-#endif  // LIBCAER_DRIVER__PARAMETER_HPP_
+#endif  // LIBCAER_DRIVER__PARAMETER__PARAMETER_HPP_

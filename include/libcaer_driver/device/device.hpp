@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__DEVICE_HPP_
-#define LIBCAER_DRIVER__DEVICE_HPP_
+#ifndef LIBCAER_DRIVER__DEVICE__DEVICE_HPP_
+#define LIBCAER_DRIVER__DEVICE__DEVICE_HPP_
 
 #include <libcaer_driver/callback_handler.hpp>
 #include <libcaer_driver/device_info.hpp>
@@ -32,18 +32,19 @@ class Device
 {
 public:
   virtual ~Device() = default;
-  // --------------- to be implemented by derived classe
-  virtual void resetTimeStamps()  = 0;
+  // --------- to be implemented by derived classe
+  virtual void resetTimeStamps() = 0;
 
   // -------- own methods
-  const Parameters &getParameters() const { return (*parameters_); }
+  const Parameters & getParameters() const { return (*parameters_); }
   const DeviceInfo & getDeviceInfo() const { return (deviceInfo_); }
 
   void setDeviceInfo(DeviceInfo & di) { deviceInfo_ = di; }
-  void setDevice(std::unique_ptr<libcaer::devices::device> & d) { device_ = std::move(d); };
+  void setDevice(std::unique_ptr<libcaer::devices::device> & d) { device_ = std::move(d); }
 
   void start(CallbackHandler * h);
   void stop();
+
   void configSet(const std::shared_ptr<Parameter> & p, uint32_t value);
   uint32_t configGet(const std::shared_ptr<Parameter> & p);
 
@@ -62,4 +63,4 @@ protected:
 };
 
 }  // namespace libcaer_driver
-#endif  // LIBCAER_DRIVER__LIBCAER_DEVICE_HPP_
+#endif  // LIBCAER_DRIVER__DEVICE__DEVICE_HPP_

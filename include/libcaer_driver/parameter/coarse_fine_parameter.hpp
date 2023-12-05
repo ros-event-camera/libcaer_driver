@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__COARSE_FINE_PARAMETER_HPP_
-#define LIBCAER_DRIVER__COARSE_FINE_PARAMETER_HPP_
+#ifndef LIBCAER_DRIVER__PARAMETER__COARSE_FINE_PARAMETER_HPP_
+#define LIBCAER_DRIVER__PARAMETER__COARSE_FINE_PARAMETER_HPP_
 
 #include <libcaer/devices/davis.h>
 
@@ -44,24 +44,29 @@ public:
   }
 
   // ------- inherited methods
-  std::vector<std::shared_ptr<RosParameter>> makeRosParameters(const std::shared_ptr<Parameter> & pa) const override
+  std::vector<std::shared_ptr<RosParameter>> makeRosParameters(
+    const std::shared_ptr<Parameter> & pa) const override
   {
     std::vector<std::shared_ptr<RosParameter>> p;
     if (!isHidden()) {
       p.push_back(std::make_shared<RosIntParameter>(
-        name_ + "_coarse", bias_.coarseValue, coarseMin_, coarseMax_, description_, pa, FIELD_COARSE));
+        name_ + "_coarse", bias_.coarseValue, coarseMin_, coarseMax_, description_, pa,
+        FIELD_COARSE));
       p.push_back(std::make_shared<RosIntParameter>(
         name_ + "_fine", bias_.fineValue, fineMin_, fineMax_, description_, pa, FIELD_FINE));
     }
     return (p);
   }
-  int32_t getValue(Field f) const override { return ((f == FIELD_COARSE) ? bias_.coarseValue : bias_.fineValue); }
+  int32_t getValue(Field f) const override
+  {
+    return ((f == FIELD_COARSE) ? bias_.coarseValue : bias_.fineValue);
+  }
   void setValue(Field f, int32_t v) override { setBias(f, v); }
   // -------------------------
 
   const caer_bias_coarsefine & getBias() const { return (bias_); }
 
-  void setBias(const caer_bias_coarsefine &b) { bias_ = b;}
+  void setBias(const caer_bias_coarsefine & b) { bias_ = b; }
   void setBias(Field f, int32_t b)
   {
     if (f == FIELD_COARSE) {
@@ -83,4 +88,4 @@ private:
 
 }  // namespace libcaer_driver
 
-#endif  // LIBCAER_DRIVER__COARSE_FINE_PARAMETER_HPP_
+#endif  // LIBCAER_DRIVER__PARAMETER__COARSE_FINE_PARAMETER_HPP_

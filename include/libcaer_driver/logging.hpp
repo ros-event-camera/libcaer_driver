@@ -16,9 +16,9 @@
 #ifndef LIBCAER_DRIVER__LOGGING_HPP_
 #define LIBCAER_DRIVER__LOGGING_HPP_
 
-#include <sstream>
 #include <iostream>
 #include <rclcpp/rclcpp.hpp>
+#include <sstream>
 
 #define BOMB_OUT(...)                               \
   {                                                 \

@@ -13,19 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__DAVIS_HPP_
-#define LIBCAER_DRIVER__DAVIS_HPP_
+#ifndef LIBCAER_DRIVER__DEVICE__DAVIS_HPP_
+#define LIBCAER_DRIVER__DEVICE__DAVIS_HPP_
 
 #include <libcaer_driver/device/device.hpp>
 
 namespace libcaer_driver
 {
-class Davis: public Device
+class Davis : public Device
 {
 public:
-    explicit Davis(int16_t chipId);
-    void resetTimeStamps() override;
+  explicit Davis(int16_t chipId);
+  void resetTimeStamps() override;
 };
 
 }  // namespace libcaer_driver
-#endif  // LIBCAER_DRIVER__LIBCAER_DAVIS_HPP_
+#endif  // LIBCAER_DRIVER__DEVICE__DAVIS_HPP_

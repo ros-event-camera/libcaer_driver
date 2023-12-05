@@ -20,6 +20,9 @@
 #include <camera_info_manager/camera_info_manager.hpp>
 #include <event_camera_msgs/msg/event_packet.hpp>
 #include <image_transport/image_transport.hpp>
+#include <libcaer_driver/callback_handler.hpp>
+#include <libcaer_driver/parameter/parameter.hpp>
+#include <libcaer_driver/parameter/ros_parameter.hpp>
 #include <libcaercpp/events/frame.hpp>
 #include <libcaercpp/events/imu6.hpp>
 #include <map>
@@ -29,10 +32,6 @@
 #include <std_msgs/msg/header.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <string>
-
-#include <libcaer_driver/callback_handler.hpp>
-#include <libcaer_driver/parameter/parameter.hpp>
-#include <libcaer_driver/parameter/ros_parameter.hpp>
 
 namespace libcaer_driver
 {
@@ -70,8 +69,7 @@ private:
   void resetMsg(TimeMsg::ConstSharedPtr msg);
   void declareRosParameter(const std::shared_ptr<RosIntParameter> & rp);
   void declareRosParameter(const std::shared_ptr<RosBoolParameter> & rp);
-  void updateParameter(
-    std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & v);
+  void updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & v);
 
   template <typename T>
   T get_or(const std::string & name, const T & def)

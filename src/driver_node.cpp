@@ -13,10 +13,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <libcaer_driver/driver.hpp>
 #include <memory>
 #include <rclcpp/rclcpp.hpp>
-
-#include <libcaer_driver/driver.hpp>
 
 int main(int argc, char * argv[])
 {

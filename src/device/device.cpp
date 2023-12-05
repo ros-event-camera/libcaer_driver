@@ -13,16 +13,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <libcaer_driver/device/device.hpp>
 #include <libcaer_driver/device/davis.hpp>
+#include <libcaer_driver/device/device.hpp>
 #include <libcaer_driver/device/dvxplorer.hpp>
 #include <libcaer_driver/logging.hpp>
-#include <libcaer_driver/parameter/shifted_source_parameter.hpp>
-#include <libcaer_driver/parameter/coarse_fine_parameter.hpp>
 #include <libcaer_driver/parameter/boolean_parameter.hpp>
+#include <libcaer_driver/parameter/coarse_fine_parameter.hpp>
 #include <libcaer_driver/parameter/integer_parameter.hpp>
+#include <libcaer_driver/parameter/shifted_source_parameter.hpp>
 #include <libcaer_driver/parameter/vdac_parameter.hpp>
-
 #include <libcaercpp/devices/davis.hpp>
 #include <libcaercpp/devices/device_discover.hpp>
 #include <libcaercpp/devices/dvxplorer.hpp>
@@ -107,7 +106,7 @@ Devices Device::logAllDevices()
       std::string devInfo("unknown device type");
       switch (dev.deviceType) {
         case CAER_DEVICE_DAVIS:
-         devices.push_back({"davis", dev.deviceInfo.davisInfo.deviceSerialNumber});
+          devices.push_back({"davis", dev.deviceInfo.davisInfo.deviceSerialNumber});
           devInfo = "DAVIS SN: " + std::string(dev.deviceInfo.davisInfo.deviceSerialNumber);
           break;
         case CAER_DEVICE_DVXPLORER:
@@ -124,14 +123,16 @@ Devices Device::logAllDevices()
   return (devices);
 }
 
-void Device::start(CallbackHandler *h) {
+void Device::start(CallbackHandler * h)
+{
   if (!deviceRunning_) {
     device_->dataStart(nullptr, nullptr, nullptr, device_disconnected, h);
     deviceRunning_ = true;
   }
 }
 
-void Device::stop() {    
+void Device::stop()
+{
   if (deviceRunning_) {
     device_->dataStop();
     deviceRunning_ = false;
@@ -140,12 +141,14 @@ void Device::stop() {
   }
 }
 
-void Device::configSet(const std::shared_ptr<Parameter> &p, uint32_t value) {
-    device_->configSet(p->getModAddr(), p->getParamAddr(), value);
+void Device::configSet(const std::shared_ptr<Parameter> & p, uint32_t value)
+{
+  device_->configSet(p->getModAddr(), p->getParamAddr(), value);
 }
 
-uint32_t Device::configGet(const std::shared_ptr<Parameter> &p) {
-    return (device_->configGet(p->getModAddr(), p->getParamAddr()));
+uint32_t Device::configGet(const std::shared_ptr<Parameter> & p)
+{
+  return (device_->configGet(p->getModAddr(), p->getParamAddr()));
 }
 
 std::shared_ptr<Device> Device::newInstance(
@@ -174,16 +177,14 @@ std::shared_ptr<Device> Device::newInstance(
       break;
   }
   if (!libCaerDev) {
-    return (nullptr); // libcaer could not open the device
+    return (nullptr);  // libcaer could not open the device
   }
   libCaerDev->sendDefaultConfig();
-  libCaerDev->configSet(CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, true);
+  libCaerDev->configSet(
+    CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, true);
   dev->setDeviceInfo(di);
   dev->setDevice(libCaerDev);
   return (dev);
 }
-
-
-
 
 }  // namespace libcaer_driver

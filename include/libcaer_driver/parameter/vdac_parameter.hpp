@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__VDAC_PARAMETER_HPP_
-#define LIBCAER_DRIVER__VDAC_PARAMETER_HPP_
+#ifndef LIBCAER_DRIVER__PARAMETER__VDAC_PARAMETER_HPP_
+#define LIBCAER_DRIVER__PARAMETER__VDAC_PARAMETER_HPP_
 
 #include <libcaer_driver/parameter/parameter.hpp>
 
@@ -80,4 +80,4 @@ private:
 
 }  // namespace libcaer_driver
 
-#endif  // LIBCAER_DRIVER__VDAC_PARAMETER_HPP_
+#endif  // LIBCAER_DRIVER__PARAMETER__VDAC_PARAMETER_HPP_

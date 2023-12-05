@@ -168,7 +168,8 @@ void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
       vRos = this->declare_parameter(name, vRos, desc, false);
     }
     const int32_t vClamped = rp->clamp(vRos);
-    rp->getParameter()->setValue(rp->getField(), vClamped); // libcaer_wrapper will use this for initialization
+    rp->getParameter()->setValue(
+      rp->getField(), vClamped);  // libcaer_wrapper will use this for initialization
     if (vClamped != vRos) {
       LOG_INFO(name << " is outside limits, adjusted " << vRos << " -> " << vClamped);
       this->set_parameter(rclcpp::Parameter(name, vClamped));
@@ -268,7 +269,7 @@ void Driver::updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::Par
         cfb->setBias(rp->getField(), targetVal);  // sets coarse or fine
         wrapper_->setCoarseFineBias(cfb);         // will update cfb with read-back value
         const int32_t actualVal = cfb->getValue(rp->getField());  // check read back
-        if (actualVal != v.get<int>()) {                         // send out update to ROS world
+        if (actualVal != v.get<int>()) {                          // send out update to ROS world
           this->set_parameter(rclcpp::Parameter(name, actualVal));
         }
         break;
@@ -280,7 +281,7 @@ void Driver::updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::Par
         const int32_t targetVal = rip->clamp(v.get<int>());
         vb->setBias(rp->getField(), targetVal);
         const int32_t actualVal = vb->getValue(rp->getField());  // check read back
-        if (actualVal != v.get<int>()) {                        // send out update to ROS world
+        if (actualVal != v.get<int>()) {                         // send out update to ROS world
           this->set_parameter(rclcpp::Parameter(name, actualVal));
         }
         break;

@@ -24,63 +24,50 @@ namespace libcaer_driver
 {
 //
 // The following definitions are used for a more compact notation when building the
-// parameter list. Add more as needed.
+// parameter list.
 //
-static void addBool(
-  Parameters * p, const std::string & name, int8_t modAddr, uint8_t paramAddr, bool def,
-  bool rb = false)
-{
-  p->push_back(std::make_shared<BooleanParameter>(name, modAddr, paramAddr, def, rb));
-}
+static auto Bool = [](const std::string & n, int8_t ma, uint8_t pa, bool def) {
+  return (std::make_shared<BooleanParameter>(n, ma, pa, def));
+};
 
-static void addInt(
-  Parameters * p, const std::string & name, int8_t modAddr, uint8_t paramAddr, int32_t def,
-  int32_t vn, int32_t vx, bool rb = true)
-{
-  p->push_back(std::make_shared<IntegerParameter>(name, modAddr, paramAddr, def, vn, vx, rb));
-}
+static auto IntBias = [](const std::string & n, uint8_t pa, int32_t def, int32_t vn, int32_t vx) {
+  // for some reason the bias sensitivity cannot be read from the device with libcaer
+  return (std::make_shared<IntegerParameter>(n, DVX_DVS_CHIP_BIAS, pa, def, vn, vx, false));
+};
 
-// ---------- specializations for device
-static void addIntDvXChip(
-  Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
-{
-  return (addInt(p, name, DVX_DVS_CHIP, paramAddr, def, vn, vx));
-}
+static auto IntChip = [](const std::string & n, uint8_t pa, int32_t def, int32_t vn, int32_t vx) {
+  return (std::make_shared<IntegerParameter>(n, DVX_DVS_CHIP, pa, def, vn, vx, true));
+};
 
-static void addIntDvXCrop(
-  Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
-{
-  // reading back the row values returns the original ones even though the parameters are set...
-  return (addInt(p, name, DVX_DVS_CHIP_CROPPER, paramAddr, def, vn, vx, false));
-}
-static void addIntDvXImu(
-  Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
-{
-  return (addInt(p, name, DVX_IMU, paramAddr, def, vn, vx));
-}
+static auto IntCrop = [](const std::string & n, uint8_t pa, int32_t def, int32_t vn, int32_t vx) {
+  return (std::make_shared<IntegerParameter>(n, DVX_DVS_CHIP_CROPPER, pa, def, vn, vx, true));
+};
+
+static auto IntImu = [](const std::string & n, uint8_t pa, int32_t def, int32_t vn, int32_t vx) {
+  return (std::make_shared<IntegerParameter>(n, DVX_IMU, pa, def, vn, vx, true));
+};
 
 static std::shared_ptr<Parameters> make_dvxplorer_parameters()
 {
   auto sp = std::make_shared<Parameters>();
   auto * p = sp.get();
-  addBool(p, "dvs_enabled", DVX_DVS, DVX_DVS_RUN, true);
-  // for some reason the bias sensitivity cannot be read from the device with libcaer
-  addInt(p, "bias_sensitivity", DVX_DVS_CHIP_BIAS, DVX_DVS_CHIP_BIAS_SIMPLE, 2, 0, 4, false);
-  addBool(p, "polarity_flatten", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_FLATTEN, false);
-  addBool(p, "polarity_on_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_ON_ONLY, false);
-  addBool(p, "polarity_off_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_OFF_ONLY, false);
-  addBool(p, "subsample_enabled", DVX_DVS_CHIP, DVX_DVS_CHIP_SUBSAMPLE_ENABLE, false);
-  addIntDvXChip(p, "subsample_vertical", DVX_DVS_CHIP_SUBSAMPLE_VERTICAL, 0, 0, 7);
-  addIntDvXChip(p, "subsample_horizontal", DVX_DVS_CHIP_SUBSAMPLE_HORIZONTAL, 0, 0, 7);
-  addBool(p, "roi_enabled", DVX_DVS_CHIP_CROPPER, DVX_DVS_CHIP_CROPPER_ENABLE, false);
-  addIntDvXCrop(p, "roi_start_col", DVX_DVS_CHIP_CROPPER_X_START_ADDRESS, 0, 0, 639);
-  addIntDvXCrop(p, "roi_start_row", DVX_DVS_CHIP_CROPPER_Y_START_ADDRESS, 0, 0, 479);
-  addIntDvXCrop(p, "roi_end_col", DVX_DVS_CHIP_CROPPER_X_END_ADDRESS, 639, 0, 639);
-  addIntDvXCrop(p, "roi_end_row", DVX_DVS_CHIP_CROPPER_Y_END_ADDRESS, 479, 0, 479);
-  addBool(p, "imu_accel_enabled", DVX_IMU, DVX_IMU_RUN_ACCELEROMETER, true);
-  addBool(p, "imu_gyro_enabled", DVX_IMU, DVX_IMU_RUN_GYROSCOPE, true);
-  addIntDvXImu(p, "imu_accel_scale", DVX_IMU_ACCEL_RANGE, 1, 0, 3);
-  addIntDvXImu(p, "imu_gyro_scale", DVX_IMU_GYRO_RANGE, 2, 0, 4);
+  p->add(Bool("dvs_enabled", DVX_DVS, DVX_DVS_RUN, true));
+  p->add(IntBias("bias_sensitivity", DVX_DVS_CHIP_BIAS_SIMPLE, 2, 0, 4));
+  p->add(Bool("polarity_flatten", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_FLATTEN, false));
+  p->add(Bool("polarity_on_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_ON_ONLY, false));
+  p->add(Bool("polarity_off_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_OFF_ONLY, false));
+  p->add(Bool("subsample_enabled", DVX_DVS_CHIP, DVX_DVS_CHIP_SUBSAMPLE_ENABLE, false));
+  p->add(IntChip("subsample_vertical", DVX_DVS_CHIP_SUBSAMPLE_VERTICAL, 0, 0, 7));
+  p->add(IntChip("subsample_horizontal", DVX_DVS_CHIP_SUBSAMPLE_HORIZONTAL, 0, 0, 7));
+  p->add(Bool("roi_enabled", DVX_DVS_CHIP_CROPPER, DVX_DVS_CHIP_CROPPER_ENABLE, false));
+  p->add(IntCrop("roi_start_col", DVX_DVS_CHIP_CROPPER_X_START_ADDRESS, 0, 0, 639));
+  p->add(IntCrop("roi_start_row", DVX_DVS_CHIP_CROPPER_Y_START_ADDRESS, 0, 0, 479));
+  p->add(IntCrop("roi_end_col", DVX_DVS_CHIP_CROPPER_X_END_ADDRESS, 639, 0, 639));
+  p->add(IntCrop("roi_end_row", DVX_DVS_CHIP_CROPPER_Y_END_ADDRESS, 479, 0, 479));
+  p->add(Bool("imu_accel_enabled", DVX_IMU, DVX_IMU_RUN_ACCELEROMETER, true));
+  p->add(Bool("imu_gyro_enabled", DVX_IMU, DVX_IMU_RUN_GYROSCOPE, true));
+  p->add(IntImu("imu_accel_scale", DVX_IMU_ACCEL_RANGE, 1, 0, 3));
+  p->add(IntImu("imu_gyro_scale", DVX_IMU_GYRO_RANGE, 2, 0, 4));
   return (sp);
 };
 
