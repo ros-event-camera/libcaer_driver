@@ -16,53 +16,43 @@
 #ifndef LIBCAER_DRIVER__INTEGER_PARAMETER_HPP_
 #define LIBCAER_DRIVER__INTEGER_PARAMETER_HPP_
 
-#include <libcaer_driver/parameter.hpp>
+#include <libcaer_driver/parameter/parameter.hpp>
+#include <libcaer_driver/parameter/ros_parameter.hpp>
 
 namespace libcaer_driver
 {
 class IntegerParameter : public Parameter
 {
 public:
-  explicit IntegerParameter(const std::string &name,
-    int8_t ma, uint8_t pa, int32_t v, int32_t vn, int32_t vx, bool rb = true)
-  : Parameter(CaerParameterType::INTEGER, name, ma, pa, rb),
-    valueWithLimits_(Value(v), Value(vn), Value(vx))
+  explicit IntegerParameter(
+    const std::string & name, int8_t ma, uint8_t pa, int32_t v, int32_t vMin, int32_t vMax,
+    bool rb = true)
+  : Parameter(CaerParameterType::INTEGER, name, ma, pa, rb), v_(v), vMin_(vMin), vMax_(vMax)
   {
   }
   // ------- inherited methods
-  std::vector<RosParameter> getRosParameters() const override
+  std::vector<std::shared_ptr<RosParameter>> makeRosParameters(const std::shared_ptr<Parameter> & pa) const override
   {
-    std::vector<RosParameter> p;
+    std::vector<std::shared_ptr<RosParameter>> p;
     if (!isHidden()) {
-      p.push_back(RosParameter(name_, ROS_INTEGER, valueWithLimits_));
+      p.push_back(
+        std::make_shared<RosIntParameter>(name_, v_, vMin_, vMax_, description_, pa, FIELD_INT));
     }
     return (p);
   }
+  int32_t getValue(Field) const override { return (v_); }
+  void setValue(Field, int32_t v) override { v_ = v; }
+  // --------- own methods
+  int32_t getValue() const { return (v_); }
+  int32_t getMinValue() const { return (vMin_); }
+  int32_t getMaxValue() const { return (vMax_); }
 
-  Value getValue(const std::string &) const override
-  {
-    return (valueWithLimits_.curVal);
-  }
-  // ----------------------------
-
-  void setValue(int32_t b) {
-    valueWithLimits_.curVal = Value(b);
-  }
-  int32_t getValue() {
-    return (valueWithLimits_.curVal.get<int>());
-  }
-
-  ValueWithLimits & getValueWithLimits()
-  {
-    return (valueWithLimits_);
-  }
-  const ValueWithLimits & getValueWithLimits() const
-  {
-    return (valueWithLimits_);
-  }
+  void setValue(int32_t v) { v_ = v; }
 
 private:
-  ValueWithLimits valueWithLimits_;
+  int32_t v_{0};
+  int32_t vMin_{0};
+  int32_t vMax_{0};
 };
 
 }  // namespace libcaer_driver

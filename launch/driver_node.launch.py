@@ -24,26 +24,26 @@ from launch_ros.actions import Node
 
 def launch_setup(context, *args, **kwargs):
     """Create simple node."""
-    cam_name = LaunchConfig("camera_name")
-    cam_str = cam_name.perform(context)
     node = Node(
         package="libcaer_driver",
         executable="driver_node",
         output="screen",
         # prefix=["xterm -e gdb -ex run --args"],
-        name=cam_name,
+        name=LaunchConfig("camera_name"),
         parameters=[
             {
-                "device_type": "dvxplorer",  # "davis",
+                "device_type": LaunchConfig("device_type"),
                 "device_id": 1,
                 "serial": "",
+                "subsample_enabled": False,
+                "subsample_horizontal": 3,
                 "statistics_print_interval": 2.0,
                 "camerainfo_url": "",
                 "frame_id": "",
                 "event_message_time_threshold": 1.0e-3,
             },
         ],
-        remappings=[("~/events", cam_str + "/events")],
+        # remappings=[("~/events", "/foo/events")],
     )
     return [node]
 
@@ -54,6 +54,11 @@ def generate_launch_description():
         [
             LaunchArg(
                 "camera_name", default_value=["event_camera"], description="camera name"
+            ),
+            LaunchArg(
+                "device_type",
+                default_value=["davis"],
+                description="device type (davis, dvxplorer...)",
             ),
             OpaqueFunction(function=launch_setup),
         ]

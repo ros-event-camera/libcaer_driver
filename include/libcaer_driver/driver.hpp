@@ -30,8 +30,9 @@
 #include <std_srvs/srv/trigger.hpp>
 #include <string>
 
-#include "libcaer_driver/callback_handler.hpp"
-#include "libcaer_driver/parameter.hpp"
+#include <libcaer_driver/callback_handler.hpp>
+#include <libcaer_driver/parameter/parameter.hpp>
+#include <libcaer_driver/parameter/ros_parameter.hpp>
 
 namespace libcaer_driver
 {
@@ -49,7 +50,8 @@ public:
   ~Driver();
 
   // ---------------- inherited from CallbackHandler -----------
-  void declareParameter(const std::shared_ptr<Parameter> &p, const RosParameter &rp) override;
+  void declareParameterCallback(const std::shared_ptr<RosParameter> & rp) override;
+  void deviceDisconnectedCallback() override;
   void polarityPacketCallback(
     uint64_t t, const libcaer::events::PolarityEventPacket & packet) override;
   void framePacketCallback(uint64_t t, const libcaer::events::FrameEventPacket & packet) override;
@@ -66,9 +68,10 @@ private:
   void configureSensor();
   void resetTime();
   void resetMsg(TimeMsg::ConstSharedPtr msg);
-
+  void declareRosParameter(const std::shared_ptr<RosIntParameter> & rp);
+  void declareRosParameter(const std::shared_ptr<RosBoolParameter> & rp);
   void updateParameter(
-  const std::string & name, std::shared_ptr<Parameter> p, const rclcpp::ParameterValue & rp);
+    std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & v);
 
   template <typename T>
   T get_or(const std::string & name, const T & def)
@@ -103,7 +106,7 @@ private:
   std::shared_ptr<camera_info_manager::CameraInfoManager> infoManager_;
   image_transport::CameraPublisher cameraPub_;
   sensor_msgs::msg::CameraInfo cameraInfoMsg_;
-  std::map<std::string, std::shared_ptr<Parameter>> parameterMap_; 
+  std::map<std::string, std::shared_ptr<RosParameter>> parameterMap_;
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__DRIVER_HPP_

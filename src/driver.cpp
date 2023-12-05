@@ -18,6 +18,7 @@
 #include <libcaer_driver/check_endian.hpp>
 #include <libcaer_driver/driver.hpp>
 #include <libcaer_driver/libcaer_wrapper.hpp>
+#include <libcaer_driver/logging.hpp>
 #include <libcaer_driver/message_converter.hpp>
 #include <map>
 #include <rclcpp/parameter_events_filter.hpp>
@@ -27,67 +28,6 @@
 
 namespace libcaer_driver
 {
-template <class T>
-void set_range(
-  rcl_interfaces::msg::ParameterDescriptor::_floating_point_range_type *,
-  rcl_interfaces::msg::ParameterDescriptor::_integer_range_type *, const T &, const T &, const T &)
-{
-}
-
-template <>
-void set_range<int32_t>(
-  rcl_interfaces::msg::ParameterDescriptor::_floating_point_range_type *,
-  rcl_interfaces::msg::ParameterDescriptor::_integer_range_type * irange, const int32_t & nv,
-  const int32_t & xv, const int32_t & step)
-{
-  rcl_interfaces::msg::IntegerRange ir;
-  ir.from_value = nv;
-  ir.to_value = xv;
-  ir.step = step;
-  irange->push_back(ir);
-}
-
-// returns the current value (either default, or value overridden by user at node start)
-template <class T>
-static T declare_ros_parameter(Driver * node, const RosParameter & p)
-{
-  ValueWithLimits vvl = p.value;
-  rcl_interfaces::msg::ParameterDescriptor desc;
-  desc.name = p.name;
-  desc.description = p.desc;
-  T v(vvl.curVal.get<T>());
-  try {
-    T rawV(v);
-    if (node->has_parameter(p.name)) {
-      try {
-        rawV = node->get_parameter(p.name).get_value<T>();  // get user-provided ROS value
-      } catch (const rclcpp::ParameterTypeException & e) {
-        RCLCPP_WARN_STREAM(
-          node->get_logger(), "ignoring param " << p.name << " with invalid type!");
-      }
-    } else {
-      set_range<T>(
-        &desc.floating_point_range, &desc.integer_range, vvl.minVal.get<T>(), vvl.maxVal.get<T>(),
-        1);
-      rawV = node->declare_parameter(p.name, vvl.curVal.get<T>(), desc, false);
-    }
-    v = std::clamp<T>(rawV, vvl.minVal.get<T>(), vvl.maxVal.get<T>());
-    if (rawV != v) {
-      RCLCPP_INFO_STREAM(
-        node->get_logger(), p.name << " outside limits, adjusted " << rawV << " -> " << v);
-      node->set_parameter(rclcpp::Parameter(p.name, v));
-    } else {
-      RCLCPP_INFO_STREAM(
-        node->get_logger(), "parameter " << p.name << " initialized with value " << v);
-    }
-  } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
-    RCLCPP_WARN_STREAM(
-      node->get_logger(), "overwriting bad param with default: " + std::string(e.what()));
-    node->declare_parameter(p.name, v, desc, true);
-  }
-  return (v);
-}
-
 Driver::Driver(const rclcpp::NodeOptions & options)
 : Node(
     "libcaer_driver",
@@ -106,13 +46,13 @@ Driver::Driver(const rclcpp::NodeOptions & options)
     RCLCPP_ERROR_STREAM(get_logger(), "sensor initialization failed: " << e.what());
     throw(e);
   }
-  if (wrapper_->getDeviceInfo().hasDVS) {
+  if (wrapper_->hasDVS()) {
     eventPub_ = this->create_publisher<EventPacketMsg>(
       "~/events", rclcpp::QoS(rclcpp::KeepLast(get_or("send_queue_size", 1000)))
                     .best_effort()
                     .durability_volatile());
   }
-  if (wrapper_->getDeviceInfo().hasIMU) {
+  if (wrapper_->hasIMU()) {
     imuPub_ = this->create_publisher<ImuMsg>(
       "~/imu", rclcpp::QoS(rclcpp::KeepLast(get_or("imu_send_queue_size", 10)))
                  .best_effort()
@@ -123,13 +63,13 @@ Driver::Driver(const rclcpp::NodeOptions & options)
 
   isMaster_ = get_or<bool>("master", true);
   if (isMaster_) {
-    if (!wrapper_->getDeviceInfo().deviceIsMaster) {
+    if (!wrapper_->isMaster()) {
       RCLCPP_WARN(get_logger(), "this device should be master, but the hardware says it's not!");
     }
     resetPub_ =
       this->create_publisher<TimeMsg>("~/reset_timestamps", rclcpp::QoS(rclcpp::KeepLast(10)));
   } else {
-    if (wrapper_->getDeviceInfo().deviceIsMaster) {
+    if (wrapper_->isMaster()) {
       RCLCPP_WARN(get_logger(), "this device should be slave, but the hardware says it's not!");
     }
 
@@ -142,10 +82,10 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   // ------ get other parameters from camera
   cameraFrameId_ = get_or<std::string>("camera_frame_id", "camera");
   imuFrameId_ = get_or<std::string>("imu_frame_id", "imu");
-  dvsWidth_ = wrapper_->getDeviceInfo().dvsSizeX;
-  dvsHeight_ = wrapper_->getDeviceInfo().dvsSizeY;
-  apsWidth_ = wrapper_->getDeviceInfo().apsSizeX;
-  apsHeight_ = wrapper_->getDeviceInfo().apsSizeY;
+  dvsWidth_ = wrapper_->getDVSSizeX();
+  dvsHeight_ = wrapper_->getDVSSizeY();
+  apsWidth_ = wrapper_->getAPSSizeX();
+  apsHeight_ = wrapper_->getAPSSizeY();
 
   RCLCPP_INFO_STREAM(
     get_logger(), "res: " << dvsWidth_ << " x " << dvsHeight_ << " camera frame: " << cameraFrameId_
@@ -178,7 +118,7 @@ void Driver::resetMsg(TimeMsg::ConstSharedPtr)
 {
   // This message should only be received by the slave
   if (wrapper_) {
-    if (wrapper_->getDeviceInfo().deviceIsMaster) {
+    if (wrapper_->isMaster()) {
       RCLCPP_WARN(get_logger(), "master received a time reset message, why?");
     }
   }
@@ -203,68 +143,145 @@ Driver::~Driver()
   wrapper_.reset();  // invoke destructor
 }
 
-void Driver::declareParameter(const std::shared_ptr<Parameter> & p, const RosParameter & rp)
+void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
 {
-  switch (rp.type) {
-    case RosParameterType::ROS_INTEGER:
-      declare_ros_parameter<int>(this, rp);
-      break;
-    case RosParameterType::ROS_BOOLEAN:
-      declare_ros_parameter<bool>(this, rp);
-      break;
-    default:
-      RCLCPP_ERROR_STREAM(get_logger(), "rosparam of unknown type!");
-      throw(std::runtime_error("unknown rosparam!"));
-      break;
+  const std::string & name = rp->getName();
+  rcl_interfaces::msg::ParameterDescriptor desc;
+  desc.name = name;
+  desc.description = rp->getDescription();
+  rcl_interfaces::msg::IntegerRange ir;
+  ir.from_value = rp->getMinValue();
+  ir.to_value = rp->getMaxValue();
+  ir.step = 1;
+  desc.integer_range.push_back(ir);
+
+  int32_t vRos(rp->getValue());
+  try {
+    // declare or get the parameters value if it's already declared
+    if (this->has_parameter(name)) {
+      try {
+        vRos = this->get_parameter(name).get_value<int>();  // get user-provided ROS value
+      } catch (const rclcpp::ParameterTypeException & e) {
+        LOG_WARN("ignoring param " << name << " with invalid type!");
+      }
+    } else {
+      vRos = this->declare_parameter(name, vRos, desc, false);
+    }
+    const int32_t vClamped = rp->clamp(vRos);
+    rp->getParameter()->setValue(rp->getField(), vClamped); // libcaer_wrapper will use this for initialization
+    if (vClamped != vRos) {
+      LOG_INFO(name << " is outside limits, adjusted " << vRos << " -> " << vClamped);
+      this->set_parameter(rclcpp::Parameter(name, vClamped));
+    } else {
+      LOG_INFO("parameter " << name << " initialized with value " << vRos);
+    }
+  } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
+    LOG_WARN("overwriting bad param with default: " + std::string(e.what()));
+    this->declare_parameter(name, vRos, desc, true);
   }
-  parameterMap_.insert({rp.name, p});
 }
 
-void Driver::updateParameter(
-  const std::string & name, std::shared_ptr<Parameter> p, const rclcpp::ParameterValue & rp)
+void Driver::declareRosParameter(const std::shared_ptr<RosBoolParameter> & rp)
 {
+  const std::string & name = rp->getName();
+  rcl_interfaces::msg::ParameterDescriptor desc;
+  desc.name = name;
+  desc.description = rp->getDescription();
+  auto p = std::dynamic_pointer_cast<BooleanParameter>(rp->getParameter());
+  try {
+    if (this->has_parameter(name)) {
+      try {
+        p->setValue(this->get_parameter(name).get_value<bool>());  // get user-provided ROS value
+      } catch (const rclcpp::ParameterTypeException & e) {
+        LOG_WARN("ignoring param " << name << " with invalid type!");
+      }
+    } else {
+      p->setValue(this->declare_parameter(name, p->getValue(), desc, false));
+    }
+    LOG_INFO(
+      "parameter " << name << " initialized with value " << (p->getValue() ? "True" : "False"));
+  } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
+    LOG_WARN("overwriting bad param with default: " + std::string(e.what()));
+    this->declare_parameter(name, p->getValue(), desc, true);
+  }
+}
+
+void Driver::declareParameterCallback(const std::shared_ptr<RosParameter> & rp)
+{
+  switch (rp->getType()) {
+    case ROS_INT: {
+      const auto foo = std::dynamic_pointer_cast<RosIntParameter>(rp);
+      declareRosParameter(foo);
+      break;
+    }
+    case RosParameterType::ROS_BOOL:
+      declareRosParameter(std::dynamic_pointer_cast<RosBoolParameter>(rp));
+      break;
+    default:
+      BOMB_OUT("rosparam of unknown type: " << static_cast<int>(rp->getType()));
+      break;
+  }
+  parameterMap_.insert({rp->getName(), rp});
+}
+
+void Driver::deviceDisconnectedCallback()
+{
+  if (wrapper_) {
+    wrapper_->deviceDisconnected();
+  }
+  throw(std::runtime_error("device disconnected!"));
+}
+
+void Driver::updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & v)
+{
+  const auto & name = rp->getName();
+  auto p = rp->getParameter();
   try {
     switch (p->getCaerType()) {
       case CaerParameterType::INTEGER: {
-        RCLCPP_INFO_STREAM(get_logger(), "updating int " << name << " to " << rp.get<int>());
+        LOG_INFO("updating int " << name << " to " << v.get<int>());
         auto ip = std::dynamic_pointer_cast<IntegerParameter>(p);
-        auto & vnl = ip->getValueWithLimits();
-        const int targetVal =
-          std::clamp<int>(rp.get<int>(), vnl.minVal.get<int>(), vnl.maxVal.get<int>());
-        vnl.curVal = wrapper_->setIntegerParameter(name, ip, targetVal);
-        if (vnl.curVal.get<int>() != rp.get<int>()) {  // send out update to ROS world
-          this->set_parameter(rclcpp::Parameter(name, vnl.curVal.get<int>()));
+        auto rip = std::dynamic_pointer_cast<RosIntParameter>(rp);
+        const int32_t targetVal = rip->clamp(v.get<int>());
+        ip->setValue(targetVal);
+        wrapper_->setIntegerParameter(ip);
+        if (ip->getValue() != v.get<int>()) {  // send out update to ROS world
+          this->set_parameter(rclcpp::Parameter(name, ip->getValue()));
         }
         break;
       }
       case CaerParameterType::BOOLEAN: {
-        RCLCPP_INFO_STREAM(
-          get_logger(), "updating bool " << name << " to " << static_cast<int>(rp.get<bool>()));
+        LOG_INFO("updating bool " << name << " to " << (v.get<bool>() ? "True" : "False"));
         auto bp = std::dynamic_pointer_cast<BooleanParameter>(p);
-        wrapper_->setBooleanParameter(bp, rp.get<bool>());
+        bp->setValue(v.get<bool>());
+        wrapper_->setBooleanParameter(bp);
+        if (bp->getValue() != v.get<bool>()) {  // send out update to ROS world
+          this->set_parameter(rclcpp::Parameter(name, bp->getValue()));
+        }
         break;
       }
       case CaerParameterType::CF_BIAS: {
         auto cfb = std::dynamic_pointer_cast<CoarseFineParameter>(p);
-        RCLCPP_INFO_STREAM(get_logger(), "updating bias " << name << " to " << rp.get<int>());
-        auto & vnl = cfb->getValueWithLimits(name);
-        const int targetBias =
-          std::clamp<int>(rp.get<int>(), vnl.minVal.get<int>(), vnl.maxVal.get<int>());
-        vnl.curVal = wrapper_->setCourseFineBias(name, cfb, targetBias);
-        if (vnl.curVal.get<int>() != rp.get<int>()) {  // send out update to ROS world
-          this->set_parameter(rclcpp::Parameter(name, vnl.curVal.get<int>()));
+        LOG_INFO("updating coarse-fine bias " << name << " to " << v.get<int>());
+        auto rip = std::dynamic_pointer_cast<RosIntParameter>(rp);
+        const int32_t targetVal = rip->clamp(v.get<int>());
+        cfb->setBias(rp->getField(), targetVal);  // sets coarse or fine
+        wrapper_->setCoarseFineBias(cfb);         // will update cfb with read-back value
+        const int32_t actualVal = cfb->getValue(rp->getField());  // check read back
+        if (actualVal != v.get<int>()) {                         // send out update to ROS world
+          this->set_parameter(rclcpp::Parameter(name, actualVal));
         }
         break;
       }
       case CaerParameterType::VDAC_BIAS: {
         auto vb = std::dynamic_pointer_cast<VDACParameter>(p);
-        RCLCPP_INFO_STREAM(get_logger(), "updating vdac bias " << name << " to " << rp.get<int>());
-        auto & vnl = vb->getValueWithLimits(name);
-        const int targetBias =
-          std::clamp<int>(rp.get<int>(), vnl.minVal.get<int>(), vnl.maxVal.get<int>());
-        vnl.curVal = wrapper_->setVDACBias(name, vb, targetBias);
-        if (vnl.curVal.get<int>() != rp.get<int>()) {  // send out update to ROS world
-          this->set_parameter(rclcpp::Parameter(name, vnl.curVal.get<int>()));
+        LOG_INFO("updating vdac bias " << name << " to " << v.get<int>());
+        auto rip = std::dynamic_pointer_cast<RosIntParameter>(rp);
+        const int32_t targetVal = rip->clamp(v.get<int>());
+        vb->setBias(rp->getField(), targetVal);
+        const int32_t actualVal = vb->getValue(rp->getField());  // check read back
+        if (actualVal != v.get<int>()) {                        // send out update to ROS world
+          this->set_parameter(rclcpp::Parameter(name, actualVal));
         }
         break;
       }
@@ -295,7 +312,7 @@ void Driver::onParameterEvent(std::shared_ptr<const rcl_interfaces::msg::Paramet
     const std::string & name = ev_it.second->name;
     auto it = parameterMap_.find(name);
     if (it != parameterMap_.end()) {
-      updateParameter(name, it->second, rclcpp::ParameterValue(ev_it.second->value));
+      updateParameter(it->second, rclcpp::ParameterValue(ev_it.second->value));
     }
   }
 }

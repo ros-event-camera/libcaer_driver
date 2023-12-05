@@ -16,45 +16,37 @@
 #ifndef LIBCAER_DRIVER__BOOLEAN_PARAMETER_HPP_
 #define LIBCAER_DRIVER__BOOLEAN_PARAMETER_HPP_
 
-#include <libcaer_driver/parameter.hpp>
+#include <libcaer_driver/parameter/parameter.hpp>
+#include <libcaer_driver/parameter/ros_parameter.hpp>
 
 namespace libcaer_driver
 {
 class BooleanParameter : public Parameter
 {
 public:
-  explicit BooleanParameter(const std::string &name,
-    int8_t ma, uint8_t pa, bool v)
-  : Parameter(CaerParameterType::BOOLEAN, name, ma, pa),
-    value_(Value(v))
+  explicit BooleanParameter(const std::string & name, int8_t ma, uint8_t pa, bool v, bool rb = false)
+  : Parameter(CaerParameterType::BOOLEAN, name, ma, pa, rb), value_(v)
   {
   }
   // ------- inherited methods
-  std::vector<RosParameter> getRosParameters() const override
+  std::vector<std::shared_ptr<RosParameter>> makeRosParameters(
+    const std::shared_ptr<Parameter> & pa) const override
   {
-    std::vector<RosParameter> p;
+    std::vector<std::shared_ptr<RosParameter>> p;
     if (!isHidden()) {
-      p.push_back(RosParameter(name_, ROS_BOOLEAN, ValueWithLimits(value_, Value(false), Value(true))));
+      p.push_back(std::make_shared<RosBoolParameter>(name_, value_, description_, pa, FIELD_BOOL));
     }
     return (p);
   }
+  int32_t getValue(Field) const override { return (static_cast<int32_t>(value_)); }
+  void setValue(Field, int32_t v) override { value_ = static_cast<bool>(v); }
+  // ------- own methods
 
-  Value getValue(const std::string &) const override
-  {
-    return (value_);
-  }
-  // ----------------------------
-  bool getValue() const 
-  {
-    return (value_.get<bool>());
-  }
-  
-  void setValue(bool b) {
-    value_ = Value(b);
-  }
+  bool getValue() { return (value_); }
+  void setValue(bool b) { value_ = b; }
 
 private:
-  Value value_;
+  bool value_;
 };
 
 }  // namespace libcaer_driver

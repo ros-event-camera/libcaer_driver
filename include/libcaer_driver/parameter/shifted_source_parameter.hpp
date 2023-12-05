@@ -16,7 +16,7 @@
 #ifndef LIBCAER_DRIVER__SHIFTED_SOURCE_PARAMETER_HPP_
 #define LIBCAER_DRIVER__SHIFTED_SOURCE_PARAMETER_HPP_
 
-#include <libcaer_driver/parameter.hpp>
+#include <libcaer_driver/parameter/parameter.hpp>
 
 namespace libcaer_driver
 {
@@ -27,22 +27,38 @@ public:
     const std::string & name, int8_t ma, uint8_t pa, uint8_t ref, uint8_t reg, uint8_t om)
   : Parameter(CaerParameterType::SHIFTED_SOURCE_BIAS, name, ma, pa)
   {
-    shiftedSource_.refValue = ref;
-    shiftedSource_.regValue = reg;
-    shiftedSource_.operatingMode = static_cast<caer_bias_shiftedsource_operating_mode>(om);
-    shiftedSource_.voltageLevel = SPLIT_GATE;
+    bias_.refValue = ref;
+    bias_.regValue = reg;
+    bias_.operatingMode = static_cast<caer_bias_shiftedsource_operating_mode>(om);
+    bias_.voltageLevel = SPLIT_GATE;
   }
 
   // ------- inherited methods
-  std::vector<RosParameter> getRosParameters() const override
+  std::vector<std::shared_ptr<RosParameter>> makeRosParameters(
+    const std::shared_ptr<Parameter> &) const override
   {
-    return (std::vector<RosParameter>());
+    return (std::vector<std::shared_ptr<RosParameter>>());
   }
 
-  Value getValue(const std::string &) const override { return (Value(0)); }
+  int32_t getValue(Field f) const override
+  {
+    return ((f == FIELD_REF_VALUE) ? bias_.refValue : bias_.regValue);
+  }
+  void setValue(Field f, int32_t v) override
+  {
+    if (f == FIELD_REF_VALUE) {
+      bias_.refValue = v;
+    } else {
+      bias_.regValue = v;
+    }
+  }
+  // ------------------------------
+
+  void setBias(const caer_bias_shiftedsource & b) { bias_ = b; }
+  const caer_bias_shiftedsource & getBias() const { return (bias_); }
 
 private:
-  caer_bias_shiftedsource shiftedSource_;
+  caer_bias_shiftedsource bias_;
 };
 
 }  // namespace libcaer_driver

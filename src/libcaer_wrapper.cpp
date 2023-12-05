@@ -14,8 +14,8 @@
 // limitations under the License.
 
 #include <chrono>
-#include <libcaer_driver/action.hpp>
 #include <libcaer_driver/libcaer_wrapper.hpp>
+#include <libcaer_driver/logging.hpp>
 #include <libcaer_driver/resize_hack.hpp>
 #include <libcaercpp/devices/device_discover.hpp>
 #include <limits>
@@ -30,19 +30,8 @@ namespace libcaer_driver
 using std::chrono::duration_cast;
 using std::chrono::nanoseconds;
 using std::chrono::system_clock;
-//
-// ------------- local static functions ------------
-static const std::map<std::string, int> devices = {
-  {"dvxplorer", CAER_DEVICE_DVXPLORER}, {"davis", CAER_DEVICE_DAVIS}};
-
 // local logger handle
-static rclcpp::Logger logger() { return (rclcpp::get_logger("driver")); }
-
-// need to use free function for usb disconnect handling
-static void device_disconnected(void * ptr)
-{
-  reinterpret_cast<LibcaerWrapper *>(ptr)->deviceDisconnected();
-}
+static rclcpp::Logger get_logger() { return (rclcpp::get_logger("libcaer_wrapper")); }
 
 LibcaerWrapper::LibcaerWrapper()
 {
@@ -61,10 +50,9 @@ LibcaerWrapper::~LibcaerWrapper()
 
 void LibcaerWrapper::deviceDisconnected()
 {
-  RCLCPP_ERROR(logger(), "device disconnected!");
+  LOG_ERROR("device disconnected!");
   stopSensor();
   stopStatsThread();
-  throw(std::runtime_error("device disconnected!"));
 }
 
 void LibcaerWrapper::stopStatsThread()
@@ -130,109 +118,36 @@ void copy_specific_fields(DeviceInfo * out, const caer_davis_info & info)
   out->apsHasGlobalShutter = info.apsHasGlobalShutter;
 }
 
-template <typename T>
-std::unique_ptr<T> open_dev(
-  rclcpp::Logger logger, int16_t deviceId, const std::string & restrictSN,
-  DeviceInfo * di)
-{
-  auto p = std::make_unique<T>(deviceId, 0 /*usb bus*/, 0 /*usb dev*/, restrictSN);
-  const auto info = reinterpret_cast<T *>(p.get())->infoGet();
-  copy_common_fields(di, info);
-  // deduce device info from return type of infoGet
-  using I = typename std::result_of<decltype(&T::infoGet)(T)>::type;
-  copy_specific_fields<I>(di, info);
-  RCLCPP_INFO(
-    logger, "opened %s: id: %d, master: %d, res(%d, %d), logic version: %d", info.deviceString,
-    info.deviceID, info.deviceIsMaster, info.dvsSizeX, info.dvsSizeY, info.logicVersion);
-  return (p);
-}
-
-static std::unique_ptr<libcaer::devices::device> open_device(
-  rclcpp::Logger logger, int16_t deviceId, const caer_device_discovery_result & dr,
-  const std::string & restrictSN, DeviceInfo * info)
-{
-  std::unique_ptr<libcaer::devices::device> p;
-
-  switch (dr.deviceType) {
-    case CAER_DEVICE_DAVIS:
-      p = open_dev<libcaer::devices::davis>(logger, deviceId, restrictSN, info);
-      info->hasDVS = true;
-      info->hasIMU = true;
-      info->hasAPS = true;
-      break;
-    case CAER_DEVICE_DVXPLORER:
-      p = open_dev<libcaer::devices::dvXplorer>(logger, deviceId, restrictSN, info);
-      info->hasDVS = true;
-      info->hasIMU = true;
-      info->hasAPS = false;
-      break;
-    default:
-      RCLCPP_ERROR(logger, "found device of unsupported type: %d", dr.deviceType);
-      throw(std::runtime_error("unsupported device type!"));
-      break;
-  }
-  return (p);
-}
-
-static void log_all_devices()
-{
-  const auto all_devices = libcaer::devices::discover::all();
-  if (all_devices.empty()) {
-    RCLCPP_ERROR(logger(), "found no devices!");
-  } else {
-    RCLCPP_INFO_STREAM(logger(), "found devices: " << all_devices.size());
-    for (const auto & dev : all_devices) {
-      std::string devInfo("unknown device type");
-      switch (dev.deviceType) {
-        case CAER_DEVICE_DAVIS:
-          devInfo = "DAVIS SN: " + std::string(dev.deviceInfo.davisInfo.deviceSerialNumber);
-          break;
-        case CAER_DEVICE_DVXPLORER:
-          devInfo = "DVXPLORER SN: " + std::string(dev.deviceInfo.dvXplorerInfo.deviceSerialNumber);
-          break;
-        default:
-          break;
-      }
-      RCLCPP_INFO(logger(), "found device: %-30s", devInfo.c_str());
-    }
-  }
-}
-
 void LibcaerWrapper::initialize(
   const std::string & devType, int deviceId, const std::string & restrictSN)
 {
-  log_all_devices();
-  const auto dev_it = devices.find(devType);
-  if (dev_it == devices.end()) {
-    throw(std::runtime_error("unsupported device configured: " + devType));
+  const auto devices = Device::logAllDevices();
+  bool foundDevice = false;
+  for (const auto & dev : devices) {
+    if ((dev.first == devType) && (restrictSN.empty() || restrictSN == dev.second)) {
+      foundDevice = true;
+    }
   }
-  deviceType_ = dev_it->second;
-
+  if (!foundDevice) {
+    BOMB_OUT(
+      "cannot find device with matching type (" << devType << ") and serial number " << restrictSN);
+  }
   const int num_tries = 5;
   for (int i = 0; i < num_tries; i++) {
-    auto devices = libcaer::devices::discover::device(deviceType_);
-    for (const auto & dev : devices) {
-      device_ = open_device(logger(), deviceId, dev, restrictSN, &deviceInfo_);
-      if (device_) {
-        break;
-      }
-    }
+    device_ = Device::newInstance(devType, deviceId, restrictSN);
     if (!device_) {
-      RCLCPP_ERROR_STREAM(
-        logger(), "cannot open device of type " << devType << " on attempt " << i + 1
-                                                << ", retrying " << num_tries - i - 1
-                                                << " more times");
+      LOG_ERROR(
+        "cannot open device of type " << devType << " on attempt " << i + 1 << ", retrying "
+                                      << num_tries - i - 1 << " more times");
       std::this_thread::sleep_for(nanoseconds(1000000000));
     } else {
       break;
     }
   }
   if (!device_) {
-    throw(std::runtime_error("failed to open device"));
+    BOMB_OUT("failed to open device");
   }
-  device_->sendDefaultConfig();
-  device_->configSet(CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, true);
-  RCLCPP_INFO_STREAM(logger(), "device opened successfully");
+  LOG_INFO("device opened successfully!");
 }
 
 bool LibcaerWrapper::startSensor()
@@ -240,8 +155,7 @@ bool LibcaerWrapper::startSensor()
   if (!keepProcessingRunning_.load()) {
     keepProcessingRunning_.store(true);
     // must start the device *before* the processing thread
-    device_->dataStart(nullptr, nullptr, nullptr, device_disconnected, this);
-    deviceRunning_ = true;
+    device_->start(callbackHandler_);
     startProcessingThread();
     return (true);
   }
@@ -251,11 +165,7 @@ bool LibcaerWrapper::startSensor()
 void LibcaerWrapper::stopSensor()
 {
   stopProcessingThread();
-  if (deviceRunning_) {
-    device_->dataStop();
-    deviceRunning_ = false;
-    RCLCPP_INFO(logger(), "stopped sensor.");
-  }
+  device_->stop();
 }
 
 void LibcaerWrapper::startProcessingThread()
@@ -299,7 +209,7 @@ void LibcaerWrapper::processPacket(
 
 void LibcaerWrapper::processingThread()
 {
-  RCLCPP_INFO(logger(), "starting processing thread!");
+  LOG_INFO("starting processing thread!");
 
   while (rclcpp::ok() && keepProcessingRunning_.load(std::memory_order_relaxed)) {
     std::unique_ptr<libcaer::events::EventPacketContainer> pcp = device_->dataGet();
@@ -313,7 +223,7 @@ void LibcaerWrapper::processingThread()
       }
     }
   }
-  RCLCPP_INFO(logger(), "processing thread exited!");
+  LOG_INFO("processing thread exited!");
 }
 
 void LibcaerWrapper::statsThread()
@@ -324,144 +234,156 @@ void LibcaerWrapper::statsThread()
     statsCv_.wait_for(lock, duration);
     printStatistics();
   }
-  RCLCPP_INFO(logger(), "statistics thread exited!");
+  LOG_INFO("statistics thread exited!");
 }
 
-Value LibcaerWrapper::setCourseFineBias(
-  const std::string & name, std::shared_ptr<CoarseFineParameter> p, int32_t targetBias)
+void LibcaerWrapper::setCoarseFineBias(std::shared_ptr<CoarseFineParameter> p)
 {
-  p->setBias(name, targetBias);      // updates the bias struct internal to the parameter
-  const auto & bias = p->getBias();  // get the updated bias struct
-  // send updated bias to device
-  device_->configSet(p->getModAddr(), p->getParamAddr(), caerBiasCoarseFineGenerate(bias));
+  const auto & name = p->getName();
+  const auto target = p->getBias();
+  device_->configSet(p, caerBiasCoarseFineGenerate(p->getBias()));
   // read back from device
-  const auto newBias = caerBiasCoarseFineParse(configGet(p->getModAddr(), p->getParamAddr()));
-  // pick the correct bias
-  const auto newValue = p->isCoarseBias(name) ? newBias.coarseValue : newBias.fineValue;
-  // update the bias struct with what is actually on the device
-  p->setBias(name, newValue);
-  if (newValue != static_cast<uint8_t>(targetBias)) {
-    RCLCPP_WARN_STREAM(
-      logger(),
-      name << " adjusted from target " << targetBias << " to " << static_cast<int32_t>(newValue));
-  }
-  return (Value(static_cast<int32_t>(newValue)));
-}
-
-Value LibcaerWrapper::setVDACBias(
-  const std::string & name, std::shared_ptr<VDACParameter> p, int32_t targetBias)
-{
-  // see setCourseFineBias() for comments
-  p->setBias(name, targetBias);
-  const auto & bias = p->getBias();
-  device_->configSet(p->getModAddr(), p->getParamAddr(), caerBiasVDACGenerate(bias));
-  const auto newBias = caerBiasVDACParse(configGet(p->getModAddr(), p->getParamAddr()));
-  const auto newValue = p->isCurrentBias(name) ? newBias.currentValue : newBias.voltageValue;
-  p->setBias(name, newValue);
-  if (newValue != static_cast<uint8_t>(targetBias)) {
-    RCLCPP_WARN_STREAM(
-      logger(),
-      name << " adjusted from target " << targetBias << " to " << static_cast<int32_t>(newValue));
-  }
-  return (Value(static_cast<int32_t>(newValue)));
-}
-
-Value LibcaerWrapper::setIntegerParameter(
-  const std::string & name, std::shared_ptr<IntegerParameter> p, int32_t targetValue)
-{
-  p->setValue(targetValue);
-  RCLCPP_INFO_STREAM(logger(), "setting param: " << name << " to " << p->getValue());
-  device_->configSet(p->getModAddr(), p->getParamAddr(), p->getValue());
   if (p->readBack()) {
-    try {
-      p->setValue(configGet(p->getModAddr(), p->getParamAddr()));
-      if (p->getValue() != targetValue) {
-        RCLCPP_WARN_STREAM(
-          logger(), "libcaer adjusted parameter " << p->getName() << " from desired " << targetValue
-                                                  << " to " << p->getValue());
-      }
-    } catch (const std::runtime_error & e) {
-      RCLCPP_INFO_STREAM(logger(), "cannot read back param: " << name << " " << e.what());
+    p->setBias(caerBiasCoarseFineParse(device_->configGet(p)));
+    const auto & newBias = p->getBias();
+    if (newBias.coarseValue != target.coarseValue) {
+      LOG_WARN(
+        name << " adjusted coarse from target " << static_cast<int32_t>(target.coarseValue)
+             << " to " << static_cast<int32_t>(newBias.coarseValue));
+    }
+    if (newBias.fineValue != target.fineValue) {
+      LOG_WARN(
+        name << " adjusted fine from target " << static_cast<int32_t>(target.fineValue) << " to "
+             << static_cast<int32_t>(newBias.fineValue));
     }
   }
-  RCLCPP_INFO_STREAM(
-    logger(), "set int param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr()) << " to "
-                                << targetValue << " set: " << p->getValue());
-
-  return (Value(p->getValue()));
+}
+void LibcaerWrapper::setVDACBias(std::shared_ptr<VDACParameter> p)
+{
+  const auto & name = p->getName();
+  const auto target = p->getBias();
+  device_->configSet(p, caerBiasVDACGenerate(p->getBias()));
+  // read back from device
+  if (p->readBack()) {
+    p->setBias(caerBiasVDACParse(device_->configGet(p)));
+    const auto & newBias = p->getBias();
+    if (newBias.voltageValue != target.voltageValue) {
+      LOG_WARN(
+        name << " adjusted voltage from target " << static_cast<int32_t>(target.voltageValue)
+             << " to " << static_cast<int32_t>(newBias.voltageValue));
+    }
+    if (newBias.currentValue != target.currentValue) {
+      LOG_WARN(
+        name << " adjusted current from target " << static_cast<int32_t>(target.currentValue)
+             << " to " << static_cast<int32_t>(newBias.currentValue));
+    }
+  }
 }
 
-bool LibcaerWrapper::setBooleanParameter(std::shared_ptr<BooleanParameter> p, bool targetValue)
+void LibcaerWrapper::setShiftedSourceBias(std::shared_ptr<ShiftedSourceParameter> p)
 {
-  p->setValue(targetValue);
-  device_->configSet(p->getModAddr(), p->getParamAddr(), p->getValue());
-  bool actualValue = configGet(p->getModAddr(), p->getParamAddr());
-  RCLCPP_INFO_STREAM(
-    logger(), "set bool param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr()) << " to "
-                                 << int(p->getValue()) << " set: " << int(actualValue));
-  return (actualValue);  // assume the setting worked....
+  const auto & name = p->getName();
+  const auto target = p->getBias();
+  device_->configSet(p, caerBiasShiftedSourceGenerate(p->getBias()));
+  // read back from device
+  if (p->readBack()) {
+    p->setBias(caerBiasShiftedSourceParse(device_->configGet(p)));
+    const auto & newBias = p->getBias();
+    if (
+      newBias.refValue != target.refValue || newBias.regValue != target.regValue ||
+      newBias.operatingMode != target.operatingMode ||
+      newBias.voltageLevel != target.voltageLevel) {
+      LOG_WARN(name << " libcaer adjust values of shifted source!");
+    }
+  }
 }
 
-uint32_t LibcaerWrapper::configGet(int8_t modAddr, uint8_t paramAddr)
+void LibcaerWrapper::setIntegerParameter(std::shared_ptr<IntegerParameter> p)
 {
-  uint32_t v;
-  device_->configGet(modAddr, paramAddr, &v);
-  return (v);
+  const auto & name = p->getName();
+  const auto targetValue = p->getValue();
+  LOG_INFO("setting param: " << name << " to " << p->getValue());
+  device_->configSet(p, p->getValue());
+  if (p->readBack()) {
+    try {
+      p->setValue(device_->configGet(p));
+      if (p->getValue() != targetValue) {
+        LOG_WARN(
+          "libcaer adjusted parameter " << p->getName() << " from desired " << targetValue << " to "
+                                        << p->getValue());
+      }
+    } catch (const std::runtime_error & e) {
+      LOG_WARN("cannot read back param: " << name << " " << e.what());
+    }
+  }
+  LOG_INFO(
+    "set int param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr()) << " to "
+                      << targetValue << " set: " << p->getValue());
+}
+
+void LibcaerWrapper::setBooleanParameter(std::shared_ptr<BooleanParameter> p)
+{
+  const auto targetValue = p->getValue();
+  device_->configSet(p, static_cast<int32_t>(p->getValue()));
+  if (p->readBack()) {
+    LOG_INFO("reading back " << p->getName());
+    p->setValue(static_cast<bool>(device_->configGet(p)));
+    if (p->getValue() != targetValue) {
+      LOG_WARN("libcaer could not set parameter " << p->getName());
+    }
+  }
+  LOG_INFO(
+    "set bool param: " << int(p->getModAddr()) << ":" << int(p->getParamAddr()) << " to "
+                       << (p->getValue() ? "True" : "False"));
 }
 
 void LibcaerWrapper::initializeParameters(CallbackHandler * h)
 {
-  const auto & params = getParameters();
+  const auto & params = device_->getParameters();
   for (const auto & p : params) {
-    const auto rps = p->getRosParameters();
+    const auto rps = p->makeRosParameters(p);
     for (const auto & rp : rps) {
-      h->declareParameter(p, rp);
+      rp->setParameter(p);
+      h->declareParameterCallback(rp);  // create parameter in ros land
     }
     try {
       switch (p->getCaerType()) {
         case CaerParameterType::INTEGER: {
           const auto pc = std::dynamic_pointer_cast<IntegerParameter>(p);
-          setIntegerParameter(pc->getName(), pc, pc->getValue(pc->getName()).get<int32_t>());
+          setIntegerParameter(pc);
           break;
         }
         case CaerParameterType::BOOLEAN: {
           const auto pc = std::dynamic_pointer_cast<BooleanParameter>(p);
-          setBooleanParameter(pc, pc->getValue());
+          setBooleanParameter(pc);
           break;
         }
         case CaerParameterType::CF_BIAS: {
-          //auto cfb = std::dynamic_pointer_cast<CoarseFineParameter>(p);
+          const auto cfb = std::dynamic_pointer_cast<CoarseFineParameter>(p);
+          setCoarseFineBias(cfb);
           break;
         }
         case CaerParameterType::VDAC_BIAS: {
+          const auto vb = std::dynamic_pointer_cast<VDACParameter>(p);
+          setVDACBias(vb);
+          break;
+        }
+        case CaerParameterType::SHIFTED_SOURCE_BIAS: {
+          const auto ssb = std::dynamic_pointer_cast<ShiftedSourceParameter>(p);
+          setShiftedSourceBias(ssb);
           break;
         }
         default:
-          throw(std::runtime_error("invalid parameter type!"));
+          BOMB_OUT("invalid parameter type: " << p->getCaerType());
           break;
       }
     } catch (const std::runtime_error & e) {
-      RCLCPP_WARN_STREAM(logger(), "error initializing parameter " << p->getName());
+      LOG_ERROR("error initializing parameter " << p->getName());
     }
   }
 }
 
-const Parameters & LibcaerWrapper::getParameters()
-{
-  try {
-    auto ptr = Parameter::instanceOfParameters(deviceType_, deviceInfo_.chipID);
-    return (*ptr);
-  } catch (const std::runtime_error & e) {
-    RCLCPP_ERROR_STREAM(logger(), "no parameters defined for device " << deviceType_);
-    throw(e);
-  }
-}
-
-void LibcaerWrapper::resetTimeStamps()
-{
-  const auto a = action::get(deviceType_, "time_reset");
-  device_->configSet(std::get<0>(a), std::get<1>(a), std::get<2>(a));
-}
+void LibcaerWrapper::resetTimeStamps() { device_->resetTimeStamps(); }
 
 void LibcaerWrapper::printStatistics()
 {
@@ -476,7 +398,7 @@ void LibcaerWrapper::printStatistics()
   const int sendMsgRate = static_cast<int>(stats_.msgsSent * invT);
 
   RCLCPP_INFO(
-    logger(), "in: %9.5f Mev/s, %8.3f MB/s, %5d msgs/s, out: %5d msg/s", recvEventsRate,
+    get_logger(), "in: %9.5f Mev/s, %8.3f MB/s, %5d msgs/s, out: %5d msg/s", recvEventsRate,
     recvByteRate, recvMsgRate, sendMsgRate);
   stats_ = Stats();  // reset statistics
 }

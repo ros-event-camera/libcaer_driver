@@ -13,20 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LIBCAER_DRIVER__ACTION_HPP_
-#define LIBCAER_DRIVER__ACTION_HPP_
+#ifndef LIBCAER_DRIVER__DAVIS_HPP_
+#define LIBCAER_DRIVER__DAVIS_HPP_
 
-#include <cstdint>
-#include <string>
-#include <tuple>
+#include <libcaer_driver/device/device.hpp>
 
 namespace libcaer_driver
 {
-namespace action
+class Davis: public Device
 {
-using Action = std::tuple<int8_t, uint8_t, uint32_t>;
-Action get(int deviceType, const std::string & name);
-}  // namespace action
-}  // namespace libcaer_driver
+public:
+    explicit Davis(int16_t chipId);
+    void resetTimeStamps() override;
+};
 
-#endif  // LIBCAER_DRIVER__ACTION_HPP_
+}  // namespace libcaer_driver
+#endif  // LIBCAER_DRIVER__LIBCAER_DAVIS_HPP_

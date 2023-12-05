@@ -13,19 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <memory>
-#include <rclcpp/rclcpp.hpp>
+#ifndef LIBCAER_DRIVER__DVXPLORER_HPP_
+#define LIBCAER_DRIVER__DVXPLORER_HPP_
 
-#include <libcaer_driver/driver.hpp>
+#include <libcaer_driver/device/device.hpp>
 
-int main(int argc, char * argv[])
+namespace libcaer_driver
 {
-  rclcpp::init(argc, argv);
-  auto node = std::make_shared<libcaer_driver::Driver>(rclcpp::NodeOptions());
+class DvXplorer: public Device
+{
+public:
+    explicit DvXplorer();
+    void resetTimeStamps() override;
+};
 
-  RCLCPP_INFO(node->get_logger(), "driver_node started up!");
-  // actually run the node
-  rclcpp::spin(node);  // should not return
-  rclcpp::shutdown();
-  return 0;
-}
+}  // namespace libcaer_driver
+#endif  // LIBCAER_DRIVER__LIBCAER_DVXPLORER_HPP_

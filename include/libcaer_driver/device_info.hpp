@@ -18,41 +18,44 @@
 
 #include <libcaer/devices/davis.h>
 
+#include <cstdint>
+#include <string>
+
 namespace libcaer_driver
 {
-  struct DeviceInfo
-  {
-    // --------- common fields indicating device properties
-    bool hasDVS{false};
-    bool hasIMU{false};
-    bool hasAPS{false};
-    // -------- common to Davis and DVXplorer
-    int16_t deviceID{-1};
-    std::string deviceSerialNumber;
-    uint8_t deviceUSBBusNumber;
-    uint8_t deviceUSBDeviceAddress;
-    std::string deviceString;
-    int16_t firmwareVersion{-1};
-    int16_t logicVersion{-1};
-    int16_t chipID{-1};
-    bool deviceIsMaster{true};
-    bool muxHasStatistics{false};
-    int16_t dvsSizeX{0};
-    int16_t dvsSizeY{0};
-    bool dvsHasStatistics{false};
-    enum caer_imu_types imuType;
-    bool extInputHasGenerator{false};
-    // -------- only valid for Davis
-    bool dvsHasPixelFilter{false};
-    bool dvsHasBackgroundActivityFilter;
-    bool dvsHasROIFilter{false};
-    bool dvsHasSkipFilter{false};
-    bool dvsHasPolarityFilter{false};
-    int16_t apsSizeX{0};
-    int16_t apsSizeY{0};
-    enum caer_frame_event_color_filter apsColorFilter;
-    bool apsHasGlobalShutter{false};
-  };
+struct DeviceInfo
+{
+  // --------- common fields indicating device properties
+  bool hasDVS{true};
+  bool hasIMU{true};
+  bool hasAPS{false};
+  // -------- common to Davis and DVXplorer
+  int16_t deviceID{-1};
+  std::string deviceSerialNumber;
+  uint8_t deviceUSBBusNumber;
+  uint8_t deviceUSBDeviceAddress;
+  std::string deviceString;
+  int16_t firmwareVersion{-1};
+  int16_t logicVersion{-1};
+  int16_t chipID{-1};
+  bool deviceIsMaster{true};
+  bool muxHasStatistics{false};
+  int16_t dvsSizeX{0};
+  int16_t dvsSizeY{0};
+  bool dvsHasStatistics{false};
+  enum caer_imu_types imuType;
+  bool extInputHasGenerator{false};
+  // -------- only valid for Davis
+  bool dvsHasPixelFilter{false};
+  bool dvsHasBackgroundActivityFilter;
+  bool dvsHasROIFilter{false};
+  bool dvsHasSkipFilter{false};
+  bool dvsHasPolarityFilter{false};
+  int16_t apsSizeX{0};
+  int16_t apsSizeY{0};
+  enum caer_frame_event_color_filter apsColorFilter;
+  bool apsHasGlobalShutter{false};
+};
 
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__DEVICE_INFO_HPP_

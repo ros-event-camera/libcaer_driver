@@ -13,25 +13,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <libcaer_driver/boolean_parameter.hpp>
-#include <libcaer_driver/coarse_fine_parameter.hpp>
-#include <libcaer_driver/integer_parameter.hpp>
-#include <libcaer_driver/shifted_source_parameter.hpp>
-#include <libcaer_driver/parameter.hpp>
-#include <libcaer_driver/vdac_parameter.hpp>
-#include <libcaercpp/devices/device_discover.hpp>
-#include <rclcpp/rclcpp.hpp>
-
-//
-// Map between the ROS parameters and libcaer parameters for configSet().
-// Add new devices here, but update the device map in libcaer_wrapper.cpp
+#include <libcaer_driver/device/davis.hpp>
+#include <libcaer_driver/logging.hpp>
+#include <libcaer_driver/parameter/boolean_parameter.hpp>
+#include <libcaer_driver/parameter/coarse_fine_parameter.hpp>
+#include <libcaer_driver/parameter/integer_parameter.hpp>
+#include <libcaer_driver/parameter/shifted_source_parameter.hpp>
+#include <libcaer_driver/parameter/vdac_parameter.hpp>
 
 namespace libcaer_driver
 {
-static rclcpp::Logger logger() { return (rclcpp::get_logger("driver")); }
-
-static std::shared_ptr<Parameters> parameters;
-
+static rclcpp::Logger get_logger() { return (rclcpp::get_logger("device")); }
+//
+// The following definitions are used for a more compact notation when building the
+// parameter list. Add more as needed.
+//
 static void addBool(
   Parameters * p, const std::string & name, int8_t modAddr, uint8_t paramAddr, bool def)
 {
@@ -75,7 +71,8 @@ static void addV(
 
 static void addSS(
   Parameters * p, const std::string & name, int8_t modAddr, uint8_t paramAddr, uint8_t ref,
-  uint8_t reg, uint8_t om) {
+  uint8_t reg, uint8_t om)
+{
   p->push_back(std::make_shared<ShiftedSourceParameter>(name, modAddr, paramAddr, ref, reg, om));
 }
 
@@ -91,14 +88,13 @@ static void addIntDavisAPS(
   return (addInt(p, name, DAVIS_CONFIG_APS, paramAddr, def, vn, vx));
 }
 
-static void addIntDVS(
+static void addIntDavisDVS(
   Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
 {
   return (addInt(p, name, DAVIS_CONFIG_DVS, paramAddr, def, vn, vx));
 }
 
-static void addBoolDVS(
-  Parameters * p, const std::string & name, uint8_t paramAddr, bool v)
+static void addBoolDavisDVS(Parameters * p, const std::string & name, uint8_t paramAddr, bool v)
 {
   addBool(p, name, DAVIS_CONFIG_DVS, paramAddr, v);
 }
@@ -121,25 +117,7 @@ static void addVDavis(
   addV(p, name, DAVIS_CONFIG_BIAS, paramAddr, defV, defC);
 }
 
-static void addIntDvXChip(
-  Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
-{
-  return (addInt(p, name, DVX_DVS_CHIP, paramAddr, def, vn, vx));
-}
-
-static void addIntDvXCrop(
-  Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
-{
-  // reading back the row values returns the original ones even though the parameters are set...
-  return (addInt(p, name, DVX_DVS_CHIP_CROPPER, paramAddr, def, vn, vx, false));
-}
-static void addIntDvXImu(
-  Parameters * p, const std::string & name, uint8_t paramAddr, int32_t def, int32_t vn, int32_t vx)
-{
-  return (addInt(p, name, DVX_IMU, paramAddr, def, vn, vx));
-}
-
-void make_davis_common_parameters(Parameters * p)
+static void make_davis_common_parameters(Parameters * p)
 {
   // ----------- IMU
   addBool(p, "imu_acc_enabled", DAVIS_CONFIG_IMU, DAVIS_CONFIG_IMU_RUN_ACCELEROMETER, true);
@@ -159,7 +137,7 @@ void make_davis_common_parameters(Parameters * p)
   addBool(p, "dvs_enabled", DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_RUN, true);
 };
 
-void make_davis240c_parameters(Parameters * p)
+static void make_davis240c_parameters(Parameters * p)
 {
   addCFBpDavis(p, "PrBp", DAVIS240_CONFIG_BIAS_PRBP, 2, 58);
   addCFBpDavis(p, "PrSFBp", DAVIS240_CONFIG_BIAS_PRSFBP, 1, 33);
@@ -169,7 +147,7 @@ void make_davis240c_parameters(Parameters * p)
   addCFBpDavis(p, "RefrBp", DAVIS240_CONFIG_BIAS_REFRBP, 4, 25);
 }
 
-void make_davis346b_parameters(Parameters * p)
+static void make_davis346b_parameters(Parameters * p)
 {
   addVDavis(p, "", DAVIS346_CONFIG_BIAS_APSOVERFLOWLEVEL, 27, 6);
   addVDavis(p, "", DAVIS346_CONFIG_BIAS_APSCAS, 21, 6);
@@ -201,49 +179,29 @@ void make_davis346b_parameters(Parameters * p)
   addCFBnDavis(p, "", DAVIS346_CONFIG_BIAS_BIASBUFFER, 5, 254);
   addSS(p, "", DAVIS_CONFIG_BIAS, DAVIS346_CONFIG_BIAS_SSP, 1, 33, SHIFTED_SOURCE);
   addSS(p, "", DAVIS_CONFIG_BIAS, DAVIS346_CONFIG_BIAS_SSN, 1, 33, SHIFTED_SOURCE);
-  addBoolDVS(p, "background_activity_filter_enabled", DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY, 1);
-  addIntDVS(p, "background_activity_filter_time", DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME, 80, 0, 400);
-  addBoolDVS(p, "refractory_period_enabled", DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD, false);
-  addIntDVS(p, "refractory_period_time", DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD_TIME, 2, 0, 20);
-  addIntDVS(p, "roi_start_col", DAVIS_CONFIG_DVS_FILTER_ROI_START_COLUMN, 0, 0, 345);
-  addIntDVS(p, "roi_start_row", DAVIS_CONFIG_DVS_FILTER_ROI_START_ROW, 0, 0, 259);
-  addIntDVS(p, "roi_end_col", DAVIS_CONFIG_DVS_FILTER_ROI_END_COLUMN, 345, 0, 345);
-  addIntDVS(p, "roi_end_row", DAVIS_CONFIG_DVS_FILTER_ROI_END_ROW, 259, 0, 259);
-  addBoolDVS(p, "skip_enabled", DAVIS_CONFIG_DVS_FILTER_SKIP_EVENTS, false);
-  addIntDVS(p, "skip_events_every", DAVIS_CONFIG_DVS_FILTER_SKIP_EVENTS_EVERY, 0, 0, 255);
-  addBoolDVS(p, "polarity_flatten", DAVIS_CONFIG_DVS_FILTER_POLARITY_FLATTEN, false);
-  addBoolDVS(p, "polarity_suppress", DAVIS_CONFIG_DVS_FILTER_POLARITY_SUPPRESS, false);
-  addBoolDVS(p, "polarity_suppress_type", DAVIS_CONFIG_DVS_FILTER_POLARITY_SUPPRESS_TYPE, false);
+  addBoolDavisDVS(
+    p, "background_activity_filter_enabled", DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY, 1);
+  addIntDavisDVS(
+    p, "background_activity_filter_time", DAVIS_CONFIG_DVS_FILTER_BACKGROUND_ACTIVITY_TIME, 80, 0,
+    400);
+  addBoolDavisDVS(p, "refractory_period_enabled", DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD, false);
+  addIntDavisDVS(
+    p, "refractory_period_time", DAVIS_CONFIG_DVS_FILTER_REFRACTORY_PERIOD_TIME, 2, 0, 20);
+  addIntDavisDVS(p, "roi_start_col", DAVIS_CONFIG_DVS_FILTER_ROI_START_COLUMN, 0, 0, 345);
+  addIntDavisDVS(p, "roi_start_row", DAVIS_CONFIG_DVS_FILTER_ROI_START_ROW, 0, 0, 259);
+  addIntDavisDVS(p, "roi_end_col", DAVIS_CONFIG_DVS_FILTER_ROI_END_COLUMN, 345, 0, 345);
+  addIntDavisDVS(p, "roi_end_row", DAVIS_CONFIG_DVS_FILTER_ROI_END_ROW, 259, 0, 259);
+  addBoolDavisDVS(p, "skip_enabled", DAVIS_CONFIG_DVS_FILTER_SKIP_EVENTS, false);
+  addIntDavisDVS(p, "skip_events_every", DAVIS_CONFIG_DVS_FILTER_SKIP_EVENTS_EVERY, 0, 0, 255);
+  addBoolDavisDVS(p, "polarity_flatten", DAVIS_CONFIG_DVS_FILTER_POLARITY_FLATTEN, false);
+  addBoolDavisDVS(p, "polarity_suppress", DAVIS_CONFIG_DVS_FILTER_POLARITY_SUPPRESS, false);
+  addBoolDavisDVS(
+    p, "polarity_suppress_type", DAVIS_CONFIG_DVS_FILTER_POLARITY_SUPPRESS_TYPE, false);
   addInt(p, "aps_roi_start_col", DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_START_COLUMN_0, 0, 0, 345);
   addInt(p, "aps_roi_start_row", DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_START_ROW_0, 0, 0, 259);
   addInt(p, "aps_roi_end_col", DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_COLUMN_0, 345, 0, 345);
   addInt(p, "aps_roi_end_row", DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_END_ROW_0, 259, 0, 259);
 }
-
-std::shared_ptr<Parameters> make_dvxplorer_parameters()
-{
-  auto sp = std::make_shared<Parameters>();
-  auto * p = sp.get();
-  addBool(p, "dvs_enabled", DVX_DVS, DVX_DVS_RUN, true);
-  // for some reason the bias sensitivity cannot be read from the device with libcaer
-  addInt(p, "bias_sensitivity", DVX_DVS_CHIP_BIAS, DVX_DVS_CHIP_BIAS_SIMPLE, 2, 0, 4, false);
-  addBool(p, "polarity_flatten", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_FLATTEN, false);
-  addBool(p, "polarity_on_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_ON_ONLY, false);
-  addBool(p, "polarity_off_only", DVX_DVS_CHIP, DVX_DVS_CHIP_EVENT_OFF_ONLY, false);
-  addBool(p, "subsample_enabled", DVX_DVS_CHIP, DVX_DVS_CHIP_SUBSAMPLE_ENABLE, false);
-  addIntDvXChip(p, "subsample_vertical", DVX_DVS_CHIP_SUBSAMPLE_VERTICAL, 0, 0, 7);
-  addIntDvXChip(p, "subsample_horizontal", DVX_DVS_CHIP_SUBSAMPLE_HORIZONTAL, 0, 0, 7);
-  addBool(p, "roi_enabled", DVX_DVS_CHIP_CROPPER, DVX_DVS_CHIP_CROPPER_ENABLE, false);
-  addIntDvXCrop(p, "roi_start_col", DVX_DVS_CHIP_CROPPER_X_START_ADDRESS, 0, 0, 639);
-  addIntDvXCrop(p, "roi_start_row", DVX_DVS_CHIP_CROPPER_Y_START_ADDRESS, 0, 0, 479);
-  addIntDvXCrop(p, "roi_end_col", DVX_DVS_CHIP_CROPPER_X_END_ADDRESS, 639, 0, 639);
-  addIntDvXCrop(p, "roi_end_row", DVX_DVS_CHIP_CROPPER_Y_END_ADDRESS, 479, 0, 479);
-  addBool(p, "imu_accel_enabled", DVX_IMU, DVX_IMU_RUN_ACCELEROMETER, true);
-  addBool(p, "imu_gyro_enabled", DVX_IMU, DVX_IMU_RUN_GYROSCOPE, true);
-  addIntDvXImu(p, "imu_accel_scale", DVX_IMU_ACCEL_RANGE, 1, 0, 3);
-  addIntDvXImu(p, "imu_gyro_scale", DVX_IMU_GYRO_RANGE, 2, 0, 4);
-  return (sp);
-};
 
 static std::shared_ptr<Parameters> make_davis_parameters(int16_t chipID)
 {
@@ -257,29 +215,15 @@ static std::shared_ptr<Parameters> make_davis_parameters(int16_t chipID)
       make_davis240c_parameters(p.get());
       break;
     default:
-      RCLCPP_ERROR_STREAM(logger(), "unknown chip id: " << chipID);
-      throw(std::runtime_error("unknown chip id"));
+      BOMB_OUT("unknown chip id: " << chipID);
   }
   return (p);
 }
 
-std::shared_ptr<Parameters> Parameter::instanceOfParameters(int16_t deviceType, int16_t chipID)
+Davis::Davis(int16_t chipID) { parameters_ = make_davis_parameters(chipID); }
+void Davis::resetTimeStamps()
 {
-  if (parameters) {
-    return (parameters);
-  }
-  switch (deviceType) {
-    case CAER_DEVICE_DAVIS:
-      parameters = make_davis_parameters(chipID);
-      break;
-    case CAER_DEVICE_DVXPLORER:
-      parameters = make_dvxplorer_parameters();
-      break;
-    default:
-      RCLCPP_ERROR_STREAM(rclcpp::get_logger("driver"), "unknown device of type: " << deviceType);
-      throw(std::runtime_error("unknown device type!"));
-      break;
-  }
-  return (parameters);
+  device_->configSet(DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_TIMESTAMP_RESET, 1);
 }
+
 }  // namespace libcaer_driver

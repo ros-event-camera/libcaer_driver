@@ -23,13 +23,15 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
-#include <libcaer_driver/boolean_parameter.hpp>
+#include <libcaer_driver/device/device.hpp>
+#include <libcaer_driver/parameter/boolean_parameter.hpp>
 #include <libcaer_driver/callback_handler.hpp>
-#include <libcaer_driver/coarse_fine_parameter.hpp>
+#include <libcaer_driver/parameter/coarse_fine_parameter.hpp>
+#include <libcaer_driver/parameter/shifted_source_parameter.hpp>
 #include <libcaer_driver/device_info.hpp>
-#include <libcaer_driver/integer_parameter.hpp>
-#include <libcaer_driver/parameter.hpp>
-#include <libcaer_driver/vdac_parameter.hpp>
+#include <libcaer_driver/parameter/integer_parameter.hpp>
+#include <libcaer_driver/parameter/parameter.hpp>
+#include <libcaer_driver/parameter/vdac_parameter.hpp>
 #include <libcaercpp/devices/device.hpp>
 #include <map>
 #include <memory>
@@ -41,23 +43,6 @@
 namespace libcaer_driver
 {
 class LibcaerWrapper;  // forward declaration
-namespace detail
-{
-// forward declare main template, specialize in cpp file
-template <class T>
-T set_parameter(LibcaerWrapper *, const std::string &, const Parameter &, const T)
-{
-  return (T());
-}
-template <>
-int32_t set_parameter<int32_t>(
-  LibcaerWrapper * wrapper, const std::string & name, const Parameter & p, const int32_t value);
-template <>
-bool set_parameter<bool>(
-  LibcaerWrapper * wrapper, const std::string & name, const Parameter & p, const bool value);
-
-}  // namespace detail
-
 class LibcaerWrapper
 {
 public:
@@ -73,6 +58,14 @@ public:
 
   LibcaerWrapper();
   ~LibcaerWrapper();
+
+  bool hasDVS() const { return (getDeviceInfo().hasDVS); }
+  bool hasIMU() const { return (getDeviceInfo().hasIMU); }
+  bool isMaster() const { return (getDeviceInfo().deviceIsMaster); }
+  int16_t getDVSSizeX() const { return (getDeviceInfo().dvsSizeX); }
+  int16_t getDVSSizeY() const { return (getDeviceInfo().dvsSizeY); }
+  int16_t getAPSSizeX() const { return (getDeviceInfo().apsSizeX); }
+  int16_t getAPSSizeY() const { return (getDeviceInfo().apsSizeY); }
 
   void initialize(const std::string & deviceType, int deviceId, const std::string & restrictSerial);
   void setCallbackHandler(CallbackHandler * cb) { callbackHandler_ = cb; }
@@ -91,21 +84,19 @@ public:
 
   bool startSensor();
   void stopSensor();
-  const DeviceInfo & getDeviceInfo() const { return (deviceInfo_); }
 
   void setStatisticsInterval(double sec) { statsInterval_ = sec; }
   void deviceDisconnected();
   void initializeParameters(CallbackHandler * h);
-  const Parameters & getParameters();
 
-  Value setCourseFineBias(
-    const std::string & name, std::shared_ptr<CoarseFineParameter> p, int32_t targetBias);
-  Value setVDACBias(const std::string & name, std::shared_ptr<VDACParameter> p, int32_t targetBias);
-  Value setIntegerParameter(
-    const std::string & name, std::shared_ptr<IntegerParameter> p, int32_t targetValue);
-  bool setBooleanParameter(std::shared_ptr<BooleanParameter> p, bool targetValue);
+  void setCoarseFineBias(std::shared_ptr<CoarseFineParameter> p);
+  void setVDACBias(std::shared_ptr<VDACParameter> p);
+  void setShiftedSourceBias(std::shared_ptr<ShiftedSourceParameter> p);
+  void setIntegerParameter(std::shared_ptr<IntegerParameter> p);
+  void setBooleanParameter(std::shared_ptr<BooleanParameter> p);
 
 private:
+  const DeviceInfo & getDeviceInfo() const { return (device_->getDeviceInfo()); }
   void processingThread();
   void statsThread();
   void printStatistics();
@@ -113,13 +104,9 @@ private:
   void stopProcessingThread();
   void stopStatsThread();
   void processPacket(uint64_t nsSinceEpoch, const libcaer::events::EventPacket & packet);
-  uint32_t configGet(int8_t modAddr, uint8_t paramAddr);
   // ------------ variables
+  std::shared_ptr<Device> device_;
   CallbackHandler * callbackHandler_{nullptr};
-  int16_t deviceType_{0};
-  bool isMaster_{true};    // whether it is configured as master or not
-  DeviceInfo deviceInfo_;  // all device info
-  std::unique_ptr<libcaer::devices::device> device_;
   bool deviceRunning_{false};  // status of device
   // --  related to statistics
   double statsInterval_{2.0};  // time between printouts (seconds)
