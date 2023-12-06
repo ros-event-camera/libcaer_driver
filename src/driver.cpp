@@ -31,7 +31,8 @@ namespace libcaer_driver
 Driver::Driver(const rclcpp::NodeOptions & options)
 : Node(
     "libcaer_driver",
-    rclcpp::NodeOptions(options).automatically_declare_parameters_from_overrides(true))
+    rclcpp::NodeOptions(options).automatically_declare_parameters_from_overrides(false))
+//rclcpp::NodeOptions(options).automatically_declare_parameters_from_overrides(true))
 {
   messageThresholdTime_ = uint64_t(std::abs(get_or("event_message_time_threshold", 1.0e-3)) * 1e9);
   messageThresholdSize_ =
@@ -158,15 +159,12 @@ void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
   int32_t vRos(rp->getValue());
   try {
     // declare or get the parameters value if it's already declared
-    if (this->has_parameter(name)) {
-      try {
-        vRos = this->get_parameter(name).get_value<int>();  // get user-provided ROS value
-      } catch (const rclcpp::ParameterTypeException & e) {
-        LOG_WARN("ignoring param " << name << " with invalid type!");
-      }
-    } else {
-      vRos = this->declare_parameter(name, vRos, desc, false);
+    try {
+      vRos = this->get_or(name, vRos);
+    } catch (const rclcpp::ParameterTypeException & e) {
+      LOG_WARN("ignoring param " << name << " with invalid type!");
     }
+    vRos = this->declare_parameter(name, vRos, desc, true);
     const int32_t vClamped = rp->clamp(vRos);
     rp->getParameter()->setValue(
       rp->getField(), vClamped);  // libcaer_wrapper will use this for initialization
