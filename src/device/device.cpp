@@ -181,6 +181,16 @@ std::shared_ptr<Device> Device::newInstance(
   libCaerDev->sendDefaultConfig();
   libCaerDev->configSet(
     CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BLOCKING, true);
+  // double the FIFO buffer size
+  const uint32_t bufSize =
+    libCaerDev->configGet(CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BUFFER_SIZE);
+  if (bufSize != 0) {
+    libCaerDev->configSet(
+      CAER_HOST_CONFIG_DATAEXCHANGE, CAER_HOST_CONFIG_DATAEXCHANGE_BUFFER_SIZE, 2 * bufSize);
+  }
+  // switching on INFO logging will give warnings if we are slow to consume incoming packets
+  libCaerDev->configSet(CAER_HOST_CONFIG_LOG, CAER_HOST_CONFIG_LOG_LEVEL, CAER_LOG_INFO);
+
   dev->setDeviceInfo(di);
   dev->setDevice(libCaerDev);
   return (dev);

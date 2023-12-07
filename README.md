@@ -73,6 +73,7 @@ Now you need to log out and back in to the host in order for the updated group p
 
 Parameters:
 
+- ``device_type``: "davis", "dvxplorer", ...
 - ``serial``: specifies serial number of camera to open (useful if you have multiple cameras connected). You can learn the serial number via ``lsusb -v -d 152a: | grep iSerial``, or just start the driver with the serial number left blank, and look at the console log.
 - ``event_message_time_threshold``: (in seconds) minimum time span of
   events to be aggregated in one ROS event message before message is sent. Defaults to 1ms.
@@ -82,7 +83,6 @@ Parameters:
 - ``send_queue_size``: outgoing ROS message send queue size (defaults
   to 1000 messages).
 - ``frame_id``: the frame id to use in the ROS message header
-
 - ``save_biases``: write out current bias settings to bias file. For
   this to work the ``bias_file`` parameter must be set to a non-empty value.
 
@@ -115,7 +115,7 @@ The renderer node publishes an image that can be visualized with e.g. ``rqt_imag
 
 ## CPU load
 
-Here are some approximate performance numbers on a 16 thread (8-core) AMD Ryzen 7480h laptop with max clock speed of 2.9GHz. The below numbers were obtained with a Davis 240C.
+Here are some approximate performance numbers on a 16 thread (8-core) AMD Ryzen 7480h laptop with max clock speed of 2.9GHz. The below numbers were obtained with a DvXplorer (bias sensitivity set to 4, sensor illuminated uniformly with square wave at 600Hz, delivering about 130-140 MeVs, 1150MB/s). Note that at this data rate, the decoding of the USB packets by libcaer saturates the CPU.
 
 THESE NUMBERS ARE PLACEHOLDERS, IGNORE FOR NOW!
 

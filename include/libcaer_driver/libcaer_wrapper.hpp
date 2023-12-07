@@ -40,6 +40,8 @@
 #include <thread>
 #include <utility>
 
+// #define DEBUG_PERFORMANCE
+
 namespace libcaer_driver
 {
 class LibcaerWrapper;  // forward declaration
@@ -54,6 +56,9 @@ public:
     size_t bytesRecv{0};
     size_t maxQueueSize{0};
     size_t eventsRecv{0};
+#ifdef DEBUG_PERFORMANCE
+    size_t timeElapsed{0};
+#endif
   };
 
   LibcaerWrapper();

@@ -31,8 +31,7 @@ namespace libcaer_driver
 Driver::Driver(const rclcpp::NodeOptions & options)
 : Node(
     "libcaer_driver",
-    rclcpp::NodeOptions(options).automatically_declare_parameters_from_overrides(false))
-//rclcpp::NodeOptions(options).automatically_declare_parameters_from_overrides(true))
+    rclcpp::NodeOptions(options).automatically_declare_parameters_from_overrides(true))
 {
   messageThresholdTime_ = uint64_t(std::abs(get_or("event_message_time_threshold", 1.0e-3)) * 1e9);
   messageThresholdSize_ =
@@ -59,6 +58,10 @@ Driver::Driver(const rclcpp::NodeOptions & options)
                  .best_effort()
                  .durability_volatile());
   }
+#ifdef USE_PUB_THREAD
+  keepPubThreadRunning_.store(true);
+  pubThread_ = std::make_shared<std::thread>(&Driver::publishingThread, this);
+#endif
 
   wrapper_->initializeParameters(this);
 
@@ -142,6 +145,17 @@ Driver::~Driver()
 {
   stop();
   wrapper_.reset();  // invoke destructor
+#ifdef USE_PUB_THREAD
+  if (pubThread_) {
+    {
+      keepPubThreadRunning_.store(false);
+      std::unique_lock<std::mutex> lock(pubMutex_);
+      pubCv_.notify_all();
+    }
+    pubThread_->join();
+    pubThread_.reset();
+  }
+#endif
 }
 
 void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
@@ -160,9 +174,13 @@ void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
   try {
     // declare or get the parameters value if it's already declared
     try {
-      vRos = this->get_or(name, vRos);
+      vRos = get_parameter_or<int32_t>(name, vRos);
     } catch (const rclcpp::ParameterTypeException & e) {
       LOG_WARN("ignoring param " << name << " with invalid type!");
+    }
+    // first undeclare it so we can redeclare it with the right type
+    if (this->has_parameter(name)) {
+      this->undeclare_parameter(name);
     }
     vRos = this->declare_parameter(name, vRos, desc, true);
     const int32_t vClamped = rp->clamp(vRos);
@@ -208,8 +226,7 @@ void Driver::declareParameterCallback(const std::shared_ptr<RosParameter> & rp)
 {
   switch (rp->getType()) {
     case ROS_INT: {
-      const auto foo = std::dynamic_pointer_cast<RosIntParameter>(rp);
-      declareRosParameter(foo);
+      declareRosParameter(std::dynamic_pointer_cast<RosIntParameter>(rp));
       break;
     }
     case RosParameterType::ROS_BOOL:
@@ -361,7 +378,16 @@ void Driver::polarityPacketCallback(uint64_t t, const libcaer::events::PolarityE
     const auto & events = eventMsg_->events;
     if (t - lastMessageTime_ > messageThresholdTime_ || events.size() > messageThresholdSize_) {
       reserveSize_ = std::max(reserveSize_, events.size());
-      eventPub_->publish(std::move(eventMsg_));
+#ifdef USE_PUB_THREAD
+      {
+        std::unique_lock<std::mutex> lock(pubMutex_);
+        pubQueue_.push(std::move(eventMsg_));
+        pubCv_.notify_all();
+      }
+
+#else
+      eventPub_->publish(std::move(eventMsg_));  // will reset the pointer
+#endif
       lastMessageTime_ = t;
       wrapper_->updateBytesSent(events.size());
       wrapper_->updateMsgsSent(1);
@@ -398,6 +424,22 @@ void Driver::imu6PacketCallback(uint64_t t, const libcaer::events::IMU6EventPack
     }
   }
 }
+
+#ifdef USE_PUB_THREAD
+void Driver::publishingThread()
+{
+  const auto duration = std::chrono::milliseconds(100);
+  while (rclcpp::ok() && keepPubThreadRunning_.load()) {
+    std::unique_lock<std::mutex> lock(pubMutex_);
+    pubCv_.wait_for(lock, duration);
+    while (!pubQueue_.empty()) {
+      eventPub_->publish(std::move(pubQueue_.front()));
+      pubQueue_.pop();
+    }
+  }
+  LOG_INFO("publishing thread exited!");
+}
+#endif
 
 }  // namespace libcaer_driver
 

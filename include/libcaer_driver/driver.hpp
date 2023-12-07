@@ -33,6 +33,15 @@
 #include <std_srvs/srv/trigger.hpp>
 #include <string>
 
+// #define USE_PUB_THREAD
+
+#ifdef USE_PUB_THREAD
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+#include <thread>
+#endif
+
 namespace libcaer_driver
 {
 class LibcaerWrapper;  // forward decl
@@ -74,10 +83,17 @@ private:
   template <typename T>
   T get_or(const std::string & name, const T & def)
   {
-    T p;
-    (void)get_parameter_or(name, p, def);
+    T p(def);
+    try {
+      p = declare_parameter(name, def);
+    } catch (const rclcpp::exceptions::ParameterAlreadyDeclaredException & e) {
+      (void)get_parameter_or(name, p, def);
+    }
     return (p);
   }
+#ifdef USE_PUB_THREAD
+  void publishingThread();
+#endif
 
   // ------------------------  variables ------------------------------
   std::shared_ptr<LibcaerWrapper> wrapper_;
@@ -105,6 +121,13 @@ private:
   image_transport::CameraPublisher cameraPub_;
   sensor_msgs::msg::CameraInfo cameraInfoMsg_;
   std::map<std::string, std::shared_ptr<RosParameter>> parameterMap_;
+#ifdef USE_PUB_THREAD
+  std::queue<std::unique_ptr<EventPacketMsg>> pubQueue_;
+  std::mutex pubMutex_;
+  std::condition_variable pubCv_;
+  std::shared_ptr<std::thread> pubThread_;
+  std::atomic_bool keepPubThreadRunning_{false};
+#endif
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__DRIVER_HPP_

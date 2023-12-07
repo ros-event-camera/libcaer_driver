@@ -182,13 +182,22 @@ void LibcaerWrapper::processPacket(
   }
   switch (packet.getEventType()) {
     case POLARITY_EVENT: {
+#ifdef DEBUG_PERFORMANCE
+      const auto t1 = std::chrono::high_resolution_clock::now();
+#endif
       const auto & ppacket = static_cast<const libcaer::events::PolarityEventPacket &>(packet);
       callbackHandler_->polarityPacketCallback(nsSinceEpoch, ppacket);
+#ifdef DEBUG_PERFORMANCE
+      const auto t2 = std::chrono::high_resolution_clock::now();
+#endif
       {
         std::unique_lock<std::mutex> lock(statsMutex_);
         stats_.bytesRecv += packet.getEventNumber() * sizeof(libcaer::events::PolarityEvent);
         stats_.msgsRecv++;
         stats_.eventsRecv += ppacket.getEventNumber();
+#ifdef DEBUG_PERFORMANCE
+        stats_.timeElapsed += std::chrono::duration_cast<std::chrono::nanoseconds>(t2 - t1).count();
+#endif
       }
       break;
     }
@@ -390,9 +399,16 @@ void LibcaerWrapper::printStatistics()
   const int recvMsgRate = static_cast<int>(stats_.msgsRecv * invT);
   const int sendMsgRate = static_cast<int>(stats_.msgsSent * invT);
 
-  RCLCPP_INFO(
-    get_logger(), "in: %9.5f Mev/s, %8.3f MB/s, %5d msgs/s, out: %5d msg/s", recvEventsRate,
-    recvByteRate, recvMsgRate, sendMsgRate);
+#ifdef DEBUG_PERFORMANCE
+  const double dtc = stats_.msgsRecv != 0 ? stats_.timeElapsed / stats_.msgsRecv : 0;
+  LOG_INFO_FMT(
+    "in: %9.5f Mev/s, %8.3f MB/s, %5d msgs/s, out: %5d msg/s dtc: %9.2f", recvEventsRate,
+    recvByteRate, recvMsgRate, sendMsgRate, dtc);
+#else
+  LOG_INFO_FMT(
+    "in: %9.5f Mev/s, %8.3f MB/s, %5d msgs/s, out: %5d msg/s", recvEventsRate, recvByteRate,
+    recvMsgRate, sendMsgRate);
+#endif
   stats_ = Stats();  // reset statistics
 }
 
