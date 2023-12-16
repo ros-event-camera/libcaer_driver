@@ -76,7 +76,7 @@ static void make_davis_common_parameters(Parameters * p)
   p->add(IntAPS("aps_frame_interval", DAVIS_CONFIG_APS_FRAME_INTERVAL, 25000, 0, 8388607));
   // ---------- DVS
   p->add(Bool("dvs_enabled", DAVIS_CONFIG_DVS, DAVIS_CONFIG_DVS_RUN, true));
-};
+}
 
 static void make_davis240c_parameters(Parameters * p)
 {

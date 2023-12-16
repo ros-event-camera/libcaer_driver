@@ -69,7 +69,7 @@ static std::shared_ptr<Parameters> make_dvxplorer_parameters()
   p->add(IntImu("imu_accel_scale", DVX_IMU_ACCEL_RANGE, 1, 0, 3));
   p->add(IntImu("imu_gyro_scale", DVX_IMU_GYRO_RANGE, 2, 0, 4));
   return (sp);
-};
+}
 
 DvXplorer::DvXplorer() { parameters_ = make_dvxplorer_parameters(); }
 
