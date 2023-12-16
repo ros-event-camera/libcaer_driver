@@ -182,7 +182,7 @@ void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
   try {
     // declare or get the parameters value if it's already declared
     try {
-      vRos = get_parameter_or<int32_t>(name, vRos);
+      (void)get_parameter_or<int32_t>(name, vRos, rp->getValue());
     } catch (const rclcpp::ParameterTypeException & e) {
       LOG_WARN("ignoring param " << name << " with invalid type!");
     }
@@ -358,7 +358,7 @@ void Driver::start()
 
 bool Driver::stop()
 {
-  RCLCPP_INFO(get_logger(), "driver stopping sensor");
+  LOG_INFO("driver stopping sensor");
   if (wrapper_) {
     wrapper_->stopSensor();
     return (true);

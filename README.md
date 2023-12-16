@@ -5,8 +5,9 @@ This driver is not written or supported by Inilabs.
 
 ![banner image](images/davis_240C.png)
 
-This driver is intended to be a successor to the University of Zuerich [ROS1 driver].
-The ROS2 port also addresses some deficiencies of the ROS1 driver, in particular
+This driver is intended to be a successor to the University of Zuerich
+[ROS1 driver](https://github.com/uzh-rpg/rpg_dvs_ros).
+The ROS2 port addresses some deficiencies of the ROS1 driver, in particular
 the performance problems due to the message format.
 Usage of the [event_camera_msgs](https://github.com/ros-event-camera/event_camera_msgs/)
 format allows for higher bandwidth and more efficient storage.

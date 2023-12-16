@@ -79,7 +79,7 @@ static inline void flush_state(
     }
     currentMask->reset();
   }
-};
+}
 
 size_t convert_polarity_packet_compressed(
   event_camera_msgs::msg::EventPacket * msg, const libcaer::events::PolarityEventPacket & packet,

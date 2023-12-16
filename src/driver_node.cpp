@@ -21,8 +21,6 @@ int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<libcaer_driver::Driver>(rclcpp::NodeOptions());
-
-  RCLCPP_INFO(node->get_logger(), "driver_node started up!");
   // actually run the node
   rclcpp::spin(node);  // should not return
   rclcpp::shutdown();
