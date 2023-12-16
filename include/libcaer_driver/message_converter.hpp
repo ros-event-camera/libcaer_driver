@@ -38,6 +38,10 @@ size_t convert_polarity_packet(
   event_camera_msgs::msg::EventPacket * msg, const libcaer::events::PolarityEventPacket & packet,
   const rclcpp::Time & baseTime);
 
+size_t convert_polarity_packet_compressed(
+  event_camera_msgs::msg::EventPacket * msg, const libcaer::events::PolarityEventPacket & packet,
+  const rclcpp::Time & baseTime, uint64_t * sensorTime_0);
+
 size_t convert_frame_packet(
   std::vector<std::unique_ptr<sensor_msgs::msg::Image>> * msgs,
   const libcaer::events::FrameEventPacket & packet, const std::string & frameId,

@@ -165,7 +165,9 @@ bool LibcaerWrapper::startSensor()
 void LibcaerWrapper::stopSensor()
 {
   stopProcessingThread();
-  device_->stop();
+  if (device_) {
+    device_->stop();
+  }
 }
 
 void LibcaerWrapper::startProcessingThread()
@@ -389,7 +391,7 @@ void LibcaerWrapper::resetTimeStamps() { device_->resetTimeStamps(); }
 
 void LibcaerWrapper::printStatistics()
 {
-  std::chrono::time_point<system_clock> t_now = system_clock::now();
+  const std::chrono::time_point<system_clock> t_now = system_clock::now();
   const double dt = std::chrono::duration<double>(t_now - lastPrintTime_).count();
   lastPrintTime_ = t_now;
   const double invT = dt > 0 ? 1.0 / dt : 0;

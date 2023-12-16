@@ -23,34 +23,37 @@ from launch_ros.actions import Node
 
 
 def launch_setup(context, *args, **kwargs):
-    """Create simple node."""
-    node = Node(
+    """Create separate driver and recorder nodes."""
+    driver_node = Node(
         package="libcaer_driver",
         executable="driver_node",
         output="screen",
-        # prefix=["xterm -e gdb -ex run --args"],
         name=LaunchConfig("camera_name"),
         parameters=[
             {
                 "device_type": LaunchConfig("device_type"),
                 "device_id": 1,
-                "serial": "",
-                "bias_sensitivity": 2,  # for dvxplorer
-                "OFFBn_coarse": 4,  # for DAVIS
-                "OFFBn_fine": 130,  # for DAVIS
-                "imu_accel_enabled": True,
-                "imu_gyro_enabled": True,
-                "subsample_enabled": False,
-                "subsample_horizontal": 3,
+                "encoding": "libcaer_cmp",
                 "statistics_print_interval": 2.0,
-                "camerainfo_url": "",
-                "frame_id": "",
                 "event_message_time_threshold": 1.0e-3,
             },
         ],
-        # remappings=[("~/events", "/foo/events")],
     )
-    return [node]
+    recorder_node = Node(
+        package="rosbag2_composable_recorder",
+        # prefix=['xterm -e gdb -ex run --args'],
+        executable="composable_recorder_node",
+        output="screen",
+        name="recorder_node",
+        parameters=[
+            {
+                "topics": ["/event_camera/events"],
+                "bag_name": LaunchConfig("bag"),
+                "bag_prefix": LaunchConfig("bag_prefix"),
+            }
+        ],
+    )
+    return [driver_node, recorder_node]
 
 
 def generate_launch_description():
@@ -64,6 +67,12 @@ def generate_launch_description():
                 "device_type",
                 default_value=["davis"],
                 description="device type (davis, dvxplorer...)",
+            ),
+            LaunchArg("bag", default_value=[""], description="name of output bag"),
+            LaunchArg(
+                "bag_prefix",
+                default_value=["events_"],
+                description="prefix of output bag",
             ),
             OpaqueFunction(function=launch_setup),
         ]

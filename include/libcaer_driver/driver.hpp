@@ -33,7 +33,7 @@
 #include <std_srvs/srv/trigger.hpp>
 #include <string>
 
-// #define USE_PUB_THREAD
+#define USE_PUB_THREAD
 
 #ifdef USE_PUB_THREAD
 #include <condition_variable>
@@ -101,6 +101,8 @@ private:
   bool isBigEndian_;
   std::string cameraFrameId_{"camera"};
   std::string imuFrameId_{"imu"};
+  std::string encoding_;
+  bool useCompressed_{true};
   uint32_t dvsWidth_{0};
   uint32_t dvsHeight_{0};
   uint32_t apsWidth_{0};
@@ -115,12 +117,11 @@ private:
   rclcpp::Publisher<ImuMsg>::SharedPtr imuPub_;
   rclcpp::Publisher<TimeMsg>::SharedPtr resetPub_;
   rclcpp::Subscription<TimeMsg>::SharedPtr resetSub_;
-  // ------ related to dynamic config and services
-  rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameterSubscription_;
   std::shared_ptr<camera_info_manager::CameraInfoManager> infoManager_;
   image_transport::CameraPublisher cameraPub_;
   sensor_msgs::msg::CameraInfo cameraInfoMsg_;
-  std::map<std::string, std::shared_ptr<RosParameter>> parameterMap_;
+  rclcpp::Time rosBaseTime_;
+  uint64_t sensorTime_0{0};
 #ifdef USE_PUB_THREAD
   std::queue<std::unique_ptr<EventPacketMsg>> pubQueue_;
   std::mutex pubMutex_;
@@ -128,6 +129,9 @@ private:
   std::shared_ptr<std::thread> pubThread_;
   std::atomic_bool keepPubThreadRunning_{false};
 #endif
+  // ------ related to dynamic config and services
+  rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr parameterSubscription_;
+  std::map<std::string, std::shared_ptr<RosParameter>> parameterMap_;
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__DRIVER_HPP_

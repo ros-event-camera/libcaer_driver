@@ -36,15 +36,18 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   messageThresholdTime_ = uint64_t(std::abs(get_or("event_message_time_threshold", 1.0e-3)) * 1e9);
   messageThresholdSize_ =
     static_cast<size_t>(std::abs(get_or("event_message_size_threshold", int64_t(1000000000))));
-
+  encoding_ = get_or<std::string>("encoding", "libcaer_cmp");
+  useCompressed_ = (encoding_ == "libcaer_cmp");
+  if (encoding_ != "libcaer_cmp" && encoding_ != "libcaer") {
+    BOMB_OUT("invalid encoding: " << encoding_);
+  }
   const std::string deviceType = get_or("device_type", std::string("davis"));
   try {
     wrapper_.reset(new LibcaerWrapper());
     wrapper_->setCallbackHandler(this);
     wrapper_->initialize(deviceType, get_or("device_id", 1), get_or("serial", std::string()));
   } catch (std::runtime_error & e) {
-    RCLCPP_ERROR_STREAM(get_logger(), "sensor initialization failed: " << e.what());
-    throw(e);
+    BOMB_OUT("sensor initialization failed: " << e.what());
   }
   if (wrapper_->hasDVS()) {
     eventPub_ = this->create_publisher<EventPacketMsg>(
@@ -68,13 +71,13 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   isMaster_ = get_or<bool>("master", true);
   if (isMaster_) {
     if (!wrapper_->isMaster()) {
-      RCLCPP_WARN(get_logger(), "this device should be master, but the hardware says it's not!");
+      LOG_WARN("this device should be master, but the hardware says it's not!");
     }
     resetPub_ =
       this->create_publisher<TimeMsg>("~/reset_timestamps", rclcpp::QoS(rclcpp::KeepLast(10)));
   } else {
     if (wrapper_->isMaster()) {
-      RCLCPP_WARN(get_logger(), "this device should be slave, but the hardware says it's not!");
+      LOG_WARN("this device is configured as slave, but the hardware says it's not!");
     }
 
     resetSub_ = this->create_subscription<TimeMsg>(
@@ -91,9 +94,9 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   apsWidth_ = wrapper_->getAPSSizeX();
   apsHeight_ = wrapper_->getAPSSizeY();
 
-  RCLCPP_INFO_STREAM(
-    get_logger(), "res: " << dvsWidth_ << " x " << dvsHeight_ << " camera frame: " << cameraFrameId_
-                          << " imu frame: " << imuFrameId_);
+  LOG_INFO_FMT(
+    "res: %d x %d,  camera frame id : %s, imu frame id: %s", dvsWidth_, dvsHeight_,
+    cameraFrameId_.c_str(), imuFrameId_.c_str());
 
   infoManager_ = std::make_shared<camera_info_manager::CameraInfoManager>(
     this, get_name(), get_or<std::string>("camerainfo_url", ""));
@@ -102,7 +105,7 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   if (
     ((cameraInfoMsg_.width != 0) && (cameraInfoMsg_.width != apsWidth_)) ||
     ((cameraInfoMsg_.height != 0) && (cameraInfoMsg_.height != apsHeight_))) {
-    RCLCPP_WARN(get_logger(), "sensor resolution does not match calibration file!");
+    LOG_WARN("sensor resolution does not match calibration file!");
   }
   if (cameraInfoMsg_.width == 0) {
     cameraInfoMsg_.width = apsWidth_;
@@ -118,12 +121,14 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   start();
 }
 
-void Driver::resetMsg(TimeMsg::ConstSharedPtr)
+void Driver::resetMsg(TimeMsg::ConstSharedPtr msg)
 {
   // This message should only be received by the slave
   if (wrapper_) {
     if (wrapper_->isMaster()) {
-      RCLCPP_WARN(get_logger(), "master received a time reset message, why?");
+      LOG_WARN("master received a time reset message, why?");
+    } else {
+      rosBaseTime_ = *msg;
     }
   }
 }
@@ -135,8 +140,11 @@ void Driver::resetTime()
   }
 
   if (isMaster_) {
-    TimeMsg msg(this->get_clock()->now());
-
+    // round the time to nearest microsecond so the event time stamps
+    // are prettier
+    rosBaseTime_ =
+      rclcpp::Time((this->get_clock()->now().nanoseconds() / 1000ULL) * 1000ULL, RCL_SYSTEM_TIME);
+    TimeMsg msg(rosBaseTime_);
     resetPub_->publish(msg);
   }
 }
@@ -306,7 +314,7 @@ void Driver::updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::Par
         break;
     }
   } catch (const rclcpp::ParameterTypeException & e) {
-    RCLCPP_WARN_STREAM(get_logger(), "ignoring param  " << name << " with invalid type!");
+    LOG_WARN("ignoring param  " << name << " with invalid type!");
   }
 }
 
@@ -366,15 +374,21 @@ void Driver::polarityPacketCallback(uint64_t t, const libcaer::events::PolarityE
     if (!eventMsg_) {
       eventMsg_.reset(new EventPacketMsg());
       eventMsg_->header.frame_id = cameraFrameId_;
-      eventMsg_->encoding = "mono";
+      eventMsg_->header.stamp = rclcpp::Time(t, RCL_SYSTEM_TIME);
+      eventMsg_->encoding = encoding_;
       eventMsg_->seq = seq_++;
       eventMsg_->width = dvsWidth_;
       eventMsg_->height = dvsHeight_;
       eventMsg_->is_bigendian = isBigEndian_;
       eventMsg_->events.reserve(reserveSize_);
     }
-    (void)message_converter::convert_polarity_packet(
-      eventMsg_.get(), packet, rclcpp::Time(t, RCL_SYSTEM_TIME));
+    if (useCompressed_) {
+      message_converter::convert_polarity_packet_compressed(
+        eventMsg_.get(), packet, rosBaseTime_, &sensorTime_0);
+    } else {
+      message_converter::convert_polarity_packet(eventMsg_.get(), packet, rosBaseTime_);
+    }
+
     const auto & events = eventMsg_->events;
     if (t - lastMessageTime_ > messageThresholdTime_ || events.size() > messageThresholdSize_) {
       reserveSize_ = std::max(reserveSize_, events.size());
@@ -384,17 +398,16 @@ void Driver::polarityPacketCallback(uint64_t t, const libcaer::events::PolarityE
         pubQueue_.push(std::move(eventMsg_));
         pubCv_.notify_all();
       }
-
 #else
       eventPub_->publish(std::move(eventMsg_));  // will reset the pointer
 #endif
       lastMessageTime_ = t;
       wrapper_->updateBytesSent(events.size());
       wrapper_->updateMsgsSent(1);
-    } else {
-      if (!eventMsg_) {
-        eventMsg_.reset();
-      }
+    }
+  } else {
+    if (eventMsg_) {
+      eventMsg_.reset();
     }
   }
 }
