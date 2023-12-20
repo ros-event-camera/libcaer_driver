@@ -37,8 +37,11 @@ def launch_setup(context, *args, **kwargs):
                 "serial": "",
                 "bias_sensitivity": 2,  # for dvxplorer
                 "OFFBn_coarse": 4,  # for DAVIS
-                "OFFBn_fine": 130,  # for DAVIS
+                "OFFBn_fine": 0,  # for DAVIS
+                "aps_exposure": 4000,
+                "aps_frame_interval": 40000,
                 "imu_accel_enabled": True,
+                "dvs_enabled": True,
                 "imu_gyro_enabled": True,
                 "subsample_enabled": False,
                 "subsample_horizontal": 3,
@@ -46,6 +49,8 @@ def launch_setup(context, *args, **kwargs):
                 "camerainfo_url": "",
                 "frame_id": "",
                 "event_message_time_threshold": 1.0e-3,
+                "auto_exposure_enabled": False,
+                "auto_exposure_illumination": 127.0,
             },
         ],
         # remappings=[("~/events", "/foo/events")],

@@ -67,6 +67,18 @@ Driver::Driver(const rclcpp::NodeOptions & options)
 #endif
 
   wrapper_->initializeParameters(this);
+  autoExposureEnabled_ = get_or<bool>("auto_exposure_enabled", false);
+  LOG_INFO("auto exposure enabled: " << (autoExposureEnabled_ ? "True" : "False"));
+  parameterMap_.insert(
+    {"auto_exposure_illumination", declareRosParameter(std::make_shared<RosIntParameter>(
+                                     "auto_exposure_illumination", 127, 0, 255,
+                                     "auto exposure target illumination", nullptr, FIELD_INT))});
+  targetIllumination_ = get_parameter("auto_exposure_illumination").as_int();
+  parameterMap_.insert(
+    {"auto_exposure_hysteresis", declareRosParameter(std::make_shared<RosFloatParameter>(
+                                   "auto_exposure_hysteresis", 0.0625, 0, 0.5,
+                                   "auto exposure hysteresis", nullptr, FIELD_FLOAT))});
+  exposureHysteresis_ = get_parameter("auto_exposure_hysteresis").as_double();
 
   isMaster_ = get_or<bool>("master", true);
   if (isMaster_) {
@@ -166,7 +178,8 @@ Driver::~Driver()
 #endif
 }
 
-void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
+std::shared_ptr<RosIntParameter> Driver::declareRosParameter(
+  const std::shared_ptr<RosIntParameter> & rp)
 {
   const std::string & name = rp->getName();
   rcl_interfaces::msg::ParameterDescriptor desc;
@@ -202,11 +215,59 @@ void Driver::declareRosParameter(const std::shared_ptr<RosIntParameter> & rp)
     }
   } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
     LOG_WARN("overwriting bad param with default: " + std::string(e.what()));
+    this->undeclare_parameter(name);
     this->declare_parameter(name, vRos, desc, true);
   }
+  return (rp);
 }
 
-void Driver::declareRosParameter(const std::shared_ptr<RosBoolParameter> & rp)
+std::shared_ptr<RosFloatParameter> Driver::declareRosParameter(
+  const std::shared_ptr<RosFloatParameter> & rp)
+{
+  const std::string & name = rp->getName();
+  rcl_interfaces::msg::ParameterDescriptor desc;
+  desc.name = name;
+  desc.description = rp->getDescription();
+  rcl_interfaces::msg::FloatingPointRange fr;
+  fr.from_value = rp->getMinValue();
+  fr.to_value = rp->getMaxValue();
+  fr.step = 0;
+  desc.floating_point_range.push_back(fr);
+  float vRos(rp->getValue());
+  try {
+    // declare or get the parameters value if it's already declared
+    try {
+      (void)get_parameter_or<float>(name, vRos, rp->getValue());
+    } catch (const rclcpp::ParameterTypeException & e) {
+      LOG_WARN("ignoring param " << name << " with invalid type!");
+    }
+    // first undeclare it so we can redeclare it with the right type
+    if (this->has_parameter(name)) {
+      this->undeclare_parameter(name);
+    }
+    vRos = this->declare_parameter(name, vRos, desc, true);
+    const auto vClamped = rp->clamp(vRos);
+    auto p = rp->getParameter();
+    if (p) {
+      // libcaer_wrapper will use this for initialization
+      p->setValue(rp->getField(), vClamped);
+    }
+    if (vClamped != vRos) {
+      LOG_INFO(name << " is outside limits, adjusted " << vRos << " -> " << vClamped);
+      this->set_parameter(rclcpp::Parameter(name, vClamped));
+    } else {
+      LOG_INFO_FMT("%-25s set to: %10.5f", name.c_str(), vRos);
+    }
+  } catch (const rclcpp::exceptions::InvalidParameterTypeException & e) {
+    LOG_WARN("overwriting bad param with default: " + std::string(e.what()));
+    this->undeclare_parameter(name);
+    this->declare_parameter(name, vRos, desc, true);
+  }
+  return (rp);
+}
+
+std::shared_ptr<RosBoolParameter> Driver::declareRosParameter(
+  const std::shared_ptr<RosBoolParameter> & rp)
 {
   const std::string & name = rp->getName();
   rcl_interfaces::msg::ParameterDescriptor desc;
@@ -228,6 +289,7 @@ void Driver::declareRosParameter(const std::shared_ptr<RosBoolParameter> & rp)
     LOG_WARN("overwriting bad param with default: " + std::string(e.what()));
     this->declare_parameter(name, p->getValue(), desc, true);
   }
+  return (rp);
 }
 
 void Driver::declareParameterCallback(const std::shared_ptr<RosParameter> & rp)
@@ -235,6 +297,9 @@ void Driver::declareParameterCallback(const std::shared_ptr<RosParameter> & rp)
   switch (rp->getType()) {
     case ROS_INT: {
       declareRosParameter(std::dynamic_pointer_cast<RosIntParameter>(rp));
+      if (rp->getName() == "aps_exposure") {
+        exposureParameter_ = std::dynamic_pointer_cast<RosIntParameter>(rp);
+      }
       break;
     }
     case RosParameterType::ROS_BOOL:
@@ -255,10 +320,15 @@ void Driver::deviceDisconnectedCallback()
   throw(std::runtime_error("device disconnected!"));
 }
 
-void Driver::updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & v)
+void Driver::updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & vArg)
 {
+  rclcpp::ParameterValue v(vArg);
   const auto & name = rp->getName();
   auto p = rp->getParameter();
+  if (!p) {
+    updateDriverParameter(rp, vArg);
+    return;
+  }
   try {
     switch (p->getCaerType()) {
       case CaerParameterType::INTEGER: {
@@ -315,6 +385,21 @@ void Driver::updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::Par
     }
   } catch (const rclcpp::ParameterTypeException & e) {
     LOG_WARN("ignoring param  " << name << " with invalid type!");
+  }
+}
+
+void Driver::updateDriverParameter(
+  std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & vArg)
+{
+  if (rp->getName() == "auto_exposure_enabled") {
+    autoExposureEnabled_ = vArg.get<bool>();
+    LOG_INFO("auto exposure enabled: " << (autoExposureEnabled_ ? "True" : "False"));
+  } else if (rp->getName() == "auto_exposure_illumination") {
+    targetIllumination_ = static_cast<int32_t>(vArg.get<int>());
+    LOG_INFO("target illumination set to: " << targetIllumination_);
+  } else if (rp->getName() == "auto_exposure_hysteresis") {
+    exposureHysteresis_ = static_cast<float>(vArg.get<double>());
+    LOG_INFO("auto exposure hysteresis set to: " << exposureHysteresis_);
   }
 }
 
@@ -412,6 +497,19 @@ void Driver::polarityPacketCallback(uint64_t t, const libcaer::events::PolarityE
   }
 }
 
+static int32_t compute_new_exposure_time(
+  const sensor_msgs::msg::Image & img, float * illum, int32_t currentTime, int32_t targetIllum)
+{
+  const auto & im = img.data;
+  *illum = static_cast<float>(std::accumulate(im.begin(), im.end(), 0)) / im.size();
+  if (*illum == 0.0 || targetIllum / *illum > 1e3) {
+    return (std::numeric_limits<int32_t>::max());
+  }
+  const float alpha = 0.8;
+  const int32_t newTime = currentTime * pow(targetIllum / *illum, alpha);
+  return (newTime);
+}
+
 void Driver::framePacketCallback(uint64_t t, const libcaer::events::FrameEventPacket & packet)
 {
   if (cameraPub_.getNumSubscribers() > 0) {
@@ -421,6 +519,24 @@ void Driver::framePacketCallback(uint64_t t, const libcaer::events::FrameEventPa
     for (auto & img : msgs) {
       sensor_msgs::msg::CameraInfo::UniquePtr cinfo(
         new sensor_msgs::msg::CameraInfo(cameraInfoMsg_));
+      const int32_t currentTime = wrapper_->getExposureTime();
+      if (autoExposureEnabled_ && exposureParameter_) {
+        if (frameDelay_ == 0) {
+          float illum;
+          int32_t newTime =
+            compute_new_exposure_time(*img, &illum, currentTime, targetIllumination_);
+          newTime = exposureParameter_->clamp(newTime);
+          if (abs(newTime - currentTime) > static_cast<int>(currentTime * exposureHysteresis_)) {
+            LOG_INFO_FMT(
+              "autoexp: illum: %12.5f, exp time: %5d -> %5d", illum, currentTime, newTime);
+            wrapper_->setExposureTime(newTime);
+            this->set_parameter(rclcpp::Parameter("aps_exposure", newTime));
+            frameDelay_ = 1;
+          }
+        } else {
+          frameDelay_--;
+        }
+      }
       cameraPub_.publish(std::move(img), std::move(cinfo));
     }
   }

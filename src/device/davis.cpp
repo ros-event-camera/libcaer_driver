@@ -67,8 +67,8 @@ static void make_davis_common_parameters(Parameters * p)
   p->add(IntIMU("imu_acc_scale", DAVIS_CONFIG_IMU_ACCEL_FULL_SCALE, 3, 0, 3));
   p->add(IntIMU("imu_gyro_scale", DAVIS_CONFIG_IMU_GYRO_FULL_SCALE, 3, 0, 3));
   p->add(IntIMU("imu_low_pass_filter", DAVIS_CONFIG_IMU_DIGITAL_LOW_PASS_FILTER, 1, 0, 6));
-  // note: set rate divider to 7 when lowpass filter is enabled (!=0), otherwise set to 0
-  p->add(IntIMU("imu_sample_rate_divider", DAVIS_CONFIG_IMU_SAMPLE_RATE_DIVIDER, 7, 0, 7));
+  // note: set rate divider to 0 when lowpass filter is enabled (!=0), otherwise set to 7
+  p->add(IntIMU("imu_sample_rate_divider", DAVIS_CONFIG_IMU_SAMPLE_RATE_DIVIDER, 0, 0, 7));
   // ----------- APS
   p->add(Bool("aps_enabled", DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_RUN, true));
   p->add(IntAPS("aps_exposure", DAVIS_CONFIG_APS_EXPOSURE, 5000, 0, 1000000));
@@ -164,6 +164,16 @@ Davis::Davis(int16_t chipID) { parameters_ = make_davis_parameters(chipID); }
 void Davis::resetTimeStamps()
 {
   device_->configSet(DAVIS_CONFIG_MUX, DAVIS_CONFIG_MUX_TIMESTAMP_RESET, 1);
+}
+
+void Davis::setExposureTime(int32_t t)
+{
+  device_->configSet(DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_EXPOSURE, t);
+}
+
+int32_t Davis::getExposureTime() const
+{
+  return (static_cast<int32_t>(device_->configGet(DAVIS_CONFIG_APS, DAVIS_CONFIG_APS_EXPOSURE)));
 }
 
 }  // namespace libcaer_driver

@@ -25,6 +25,8 @@ class Davis : public Device
 public:
   explicit Davis(int16_t chipId);
   void resetTimeStamps() override;
+  void setExposureTime(int32_t t) override;
+  int32_t getExposureTime() const override;
 };
 
 }  // namespace libcaer_driver

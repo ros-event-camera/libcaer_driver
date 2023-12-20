@@ -26,7 +26,7 @@
 
 namespace libcaer_driver
 {
-enum RosParameterType { ROS_INVALID, ROS_INT, ROS_BOOL };
+enum RosParameterType { ROS_INVALID, ROS_INT, ROS_BOOL, ROS_FLOAT };
 
 class RosParameter
 {
@@ -65,6 +65,7 @@ public:
   int32_t clamp(int32_t v) { return (std::clamp<int32_t>(v, vMin_, vMax_)); }
   int32_t getMinValue() const { return (vMin_); }
   int32_t getMaxValue() const { return (vMax_); }
+
   int32_t getValue() const { return (v_); }
 
 private:
@@ -85,6 +86,27 @@ public:
 
 private:
   bool v_{0};
+};
+
+class RosFloatParameter : public RosParameter
+{
+public:
+  explicit RosFloatParameter(
+    const std::string & name, float v, float vMin, float vMax, const std::string & desc,
+    const std::shared_ptr<Parameter> & p, Field f)
+  : RosParameter(ROS_FLOAT, name, desc, p, f), v_(v), vMin_(vMin), vMax_(vMax)
+  {
+  }
+  auto clamp(float v) { return (std::clamp<float>(v, vMin_, vMax_)); }
+  auto getMinValue() const { return (vMin_); }
+  auto getMaxValue() const { return (vMax_); }
+
+  auto getValue() const { return (v_); }
+
+private:
+  float v_{0};
+  float vMin_{0};
+  float vMax_{0};
 };
 
 }  // namespace libcaer_driver

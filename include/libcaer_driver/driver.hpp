@@ -76,9 +76,13 @@ private:
   void configureSensor();
   void resetTime();
   void resetMsg(TimeMsg::ConstSharedPtr msg);
-  void declareRosParameter(const std::shared_ptr<RosIntParameter> & rp);
-  void declareRosParameter(const std::shared_ptr<RosBoolParameter> & rp);
+  std::shared_ptr<RosIntParameter> declareRosParameter(const std::shared_ptr<RosIntParameter> & rp);
+  std::shared_ptr<RosFloatParameter> declareRosParameter(
+    const std::shared_ptr<RosFloatParameter> & rp);
+  std::shared_ptr<RosBoolParameter> declareRosParameter(
+    const std::shared_ptr<RosBoolParameter> & rp);
   void updateParameter(std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & v);
+  void updateDriverParameter(std::shared_ptr<RosParameter> rp, const rclcpp::ParameterValue & vArg);
 
   template <typename T>
   T get_or(const std::string & name, const T & def)
@@ -103,6 +107,11 @@ private:
   std::string imuFrameId_{"imu"};
   std::string encoding_;
   bool useCompressed_{true};
+  bool autoExposureEnabled_{false};
+  int32_t targetIllumination_{128};
+  float exposureHysteresis_{0.2};
+  int frameDelay_{0};
+  std::shared_ptr<RosIntParameter> exposureParameter_;
   uint32_t dvsWidth_{0};
   uint32_t dvsHeight_{0};
   uint32_t apsWidth_{0};

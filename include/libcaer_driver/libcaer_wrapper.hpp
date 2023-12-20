@@ -71,6 +71,8 @@ public:
   int16_t getDVSSizeY() const { return (getDeviceInfo().dvsSizeY); }
   int16_t getAPSSizeX() const { return (getDeviceInfo().apsSizeX); }
   int16_t getAPSSizeY() const { return (getDeviceInfo().apsSizeY); }
+  int32_t getExposureTime() const { return device_->getExposureTime(); }
+  void setExposureTime(int32_t t) { device_->setExposureTime(t); }
 
   void initialize(const std::string & deviceType, int deviceId, const std::string & restrictSerial);
   void setCallbackHandler(CallbackHandler * cb) { callbackHandler_ = cb; }

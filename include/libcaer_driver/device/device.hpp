@@ -34,6 +34,8 @@ public:
   virtual ~Device() = default;
   // --------- to be implemented by derived classe
   virtual void resetTimeStamps() = 0;
+  virtual void setExposureTime(int32_t t) = 0;
+  virtual int32_t getExposureTime() const = 0;
 
   // -------- own methods
   const Parameters & getParameters() const { return (*parameters_); }
