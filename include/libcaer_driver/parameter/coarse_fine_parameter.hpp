@@ -41,6 +41,7 @@ public:
     bias_.sexN = sexN_;
     bias_.typeNormal = true;
     bias_.enabled = true;
+    bias_.currentLevelNormal = true;
   }
 
   // ------- inherited methods
