@@ -51,7 +51,7 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   }
   if (wrapper_->hasDVS()) {
     eventPub_ = this->create_publisher<EventPacketMsg>(
-      "~/events", rclcpp::QoS(rclcpp::KeepLast(get_or("send_queue_size", 1000)))
+      "~/events", rclcpp::QoS(rclcpp::KeepLast(get_or("event_send_queue_size", 1000)))
                     .best_effort()
                     .durability_volatile());
   }

@@ -22,7 +22,7 @@ The events can be decoded and displayed using the following ROS/ROS2 packages:
   a node / nodelet that renders and publishes ROS image messages.
 - [event_camera_tools](https://github.com/ros-event-camera/event_camera_tools)
   a set of tools to echo, monitor performance and convert
-  [event_camera_msgs](https://github.com/ros-event-camera/event_camera_msgs) to legacy formats and into "RAW" format.
+  [event_camera_msgs](https://github.com/ros-event-camera/event_camera_msgs) to legacy formats.
 
 ## Supported platforms
 
@@ -34,6 +34,10 @@ Tested with the following hardware:
 
 - [Davis 240C](https://inivation.com/wp-content/uploads/2019/08/DAVIS240.pdf)
 - [DvXplorer](https://shop.inivation.com/collections/dvxplorer)
+
+There is some code in place for the Davis 346 but that one has never been tested
+(hardware not available) and thus will not work out of the box.
+
 
 ## How to build
 
@@ -76,19 +80,26 @@ Now you need to log out and back in to the host in order for the updated group p
 
 ## Driver Features
 
-Parameters:
+Driver parameters (besides biases and other device-specific parameters):
 
+- ``auto_exposure_enabled``: (defaults to False) enables/disables driver-provided auto exposure for APS frames.
+- ``auto_exposure_illumination``: (0-255, defaults to 127) target brightness for APS frame exposure
+- ``auto_exposure_hysteresis``: (0-0.5, defaults to 0.0625) relative tolerance for brightness error before adjusting exposure time.
+- ``camera_frame_id``: the ROS frame id to use in the header of event and image messages
+- ``camerainfo_url``: location of the ROS camera calibration file.
 - ``device_type``: "davis", "dvxplorer", ...
+- ``device_id``: the libcaer device id (defaults to 1).
 - ``event_message_time_threshold``: (in seconds) minimum time span of
   events to be aggregated in one ROS event message before message is sent. Defaults to 1ms.
 - ``event_message_size_threshold``: (in bytes) minimum size of events
   (in bytes) to be aggregated in one ROS event message before message is sent. Defaults to 1MB.
+- ``event_send_queue_size``: outgoing ROS message send queue size (defaults to 1000 messages).
 - ``encoding``: ``libcaer_cmp``(compressed, default) or ``libcaer`` (uncompressed). The CPU usage for encoding is very small, and can actually *reduce* the CPU load on the driver because of the reduction of memory access when sending the message. Use of uncompressed ``libcaer`` is strongly discouraged. Only use ``libcaer`` encoding if low event rates are expected, and decompression latency is an issue.
-- ``camera_frame_id``: the ROS frame id to use in the header of event and image messages
 - ``imu_frame_id``: the ROS frame id to use in the header of imu messages
-- ``send_queue_size``: outgoing ROS message send queue size (defaults to 1000 messages).
+- ``imu_send_queue_size``: (defaults to 10) max number of ROS messages to be buffered in send queue.
+- ``master``: (defaults to True) whether the device is acting as synchronization master.
 - ``serial``: specifies serial number of camera to open (useful if you have multiple cameras connected). You can learn the serial number via ``lsusb -v -d 152a: | grep iSerial``, or just start the driver with the serial number left blank, and look at the console log.
-- ``statistics_print_interval``: time in seconds between statistics printouts.
+- ``statistics_print_interval``: time in seconds between statistics printouts.o
 
 ## How to use:
 
@@ -124,20 +135,21 @@ The renderer node publishes an image that can be visualized with e.g. ``rqt_imag
 
 Here are some approximate performance numbers on a 16 thread (8-core) AMD Ryzen 7480h laptop with max clock speed of 2.9GHz. The below numbers were obtained with a DvXplorer (bias sensitivity set to 4, sensor illuminated uniformly with square wave at 600Hz, delivering about 130-145 MeVs, 1150MB/s). Note that at this data rate, the decoding of the USB packets by libcaer saturates the CPU, so some data is lost before it even reaches the driver. ROS ``event_message_time_threshold`` was set to 1ms. 
 
-| settings                            |encoding    |CPU load   | event rate *| note                                  |
-|-------------------------------------|------------|-----------|-----------|----------------------------------------|
-| ROS2 driver no subscriber           |libcaer_cmp | 100%      | 139 Mev/s | topic not publ., libcaer saturates CPU|
-| ROS2 driver + recorder (composable) |libcaer_cmp | 188%      | 136 Mev/s | no message transport involved |
-| ROS2 driver + recorder (nodes)      |libcaer_cmp | 172%+25%  | 139 Mev/s | FASTRTPS rmw inter-process comm.|
-| ROS2 driver + recorder (composable) |libcaer     | 253%      | 129 Mev/s | no message transport involved |
-| ROS2 driver + recorder (nodes)      |libcaer     | 156%+156% | 119 Mev/s | FASTRTPS rmw inter-process comm.|
-|-------------------------------------|------------|-----------|-----------|---------------------------------|
-| ROS1 driver no subscriber           | dvs_msgs   | 200%      |  28 Mev/s | ROS1 libcaer + driver saturate **|
-| ROS1 driver + recorder (nodelet)    | dvs_msgs   | 250%      |  26 Mev/s | no message transport involved |
+| ROS | configuration                 |encoding    |CPU load   | event rate (*)| note                                  |
+|-----|--------------------------------|------------|-----------|-----------|----------------------------------------|
+| ROS2| driver no subscriber           |libcaer_cmp | 100%      | 139 Mev/s | topic not publ., libcaer saturates CPU|
+| ROS2| driver + recorder (composable) |libcaer_cmp | 188%      | 136 Mev/s | no message transport involved |
+| ROS2| driver + recorder (nodes)      |libcaer_cmp | 172%+25%  | 139 Mev/s | FASTRTPS rmw inter-process comm.|
+| ROS2| driver + recorder (composable) |libcaer     | 253%      | 129 Mev/s | no message transport involved |
+| ROS2| driver + recorder (nodes)      |libcaer     | 156%+156% | 119 Mev/s | FASTRTPS rmw inter-process comm.|
+||
+| ROS1| driver no subscriber           | dvs_msgs   | 200%      |  28 Mev/s | ROS1 libcaer + driver saturate CPU (**)|
+| ROS1| driver + recorder (nodelet)    | dvs_msgs   | 250%      |  26 Mev/s | no message transport involved |
 
 Notes:
-* event rates are incoming event rates.
-** the ROS1 driver marshals a ROS message even if there are no subscribers
+
+(*) event rates are incoming event rates.
+(**) the ROS1 driver marshals a ROS message even if there are no subscribers
 
 Storage requirements:
 - ROS2 using ``libcaer_cmp`` encoding: about 0.615 bytes/event (uniform flicker) - 5.4 bytes/event (random noise)
