@@ -22,6 +22,7 @@
 
 namespace libcaer_driver
 {
+static rclcpp::Logger get_logger() { return (rclcpp::get_logger("device")); }
 //
 // The following definitions are used for a more compact notation when building the
 // parameter list.
@@ -73,6 +74,13 @@ static std::shared_ptr<Parameters> make_dvxplorer_parameters()
 
 DvXplorer::DvXplorer() { parameters_ = make_dvxplorer_parameters(); }
 
-void DvXplorer::resetTimeStamps() { device_->configSet(DVX_MUX, DVX_MUX_TIMESTAMP_RESET, 1); }
-
+void DvXplorer::resetTimeStamps()
+{
+  try {
+    device_->configSet(DVX_MUX, DVX_MUX_TIMESTAMP_RESET, 1);
+  } catch (const std::runtime_error &) {
+    // resetting timestamp throws error for DvXplorer Mini
+    LOG_WARN("Could not reset time stamps.");
+  }
+}
 }  // namespace libcaer_driver
