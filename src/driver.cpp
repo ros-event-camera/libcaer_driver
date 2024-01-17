@@ -205,8 +205,11 @@ std::shared_ptr<RosIntParameter> Driver::declareRosParameter(
     }
     vRos = this->declare_parameter(name, vRos, desc, true);
     const int32_t vClamped = rp->clamp(vRos);
-    rp->getParameter()->setValue(
-      rp->getField(), vClamped);  // libcaer_wrapper will use this for initialization
+    if (rp->getParameter()) {
+      rp->getParameter()->setValue(
+        rp->getField(), vClamped);  // libcaer_wrapper will use this for initialization
+    }
+
     if (vClamped != vRos) {
       LOG_INFO(name << " is outside limits, adjusted " << vRos << " -> " << vClamped);
       this->set_parameter(rclcpp::Parameter(name, vClamped));
