@@ -89,7 +89,6 @@ if(BUILD_TESTING)
   ament_cppcheck(LANGUAGE c++)
   ament_cpplint(FILTERS "-build/include,-runtime/indentation_namespace")
   ament_flake8(--config ${CMAKE_CURRENT_SOURCE_DIR}/.flake8.ini)
-  #ament_lint_cmake(--filter=-readability/wonkycase)
   ament_lint_cmake()
   # ament_pep257()   # not working on galactic / foxy
   ament_xmllint()
