@@ -2,8 +2,8 @@
 Changelog for package libcaer_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.1.3 (2024-05-30)
+------------------
 * remove repos file, build only on recent distros
 * use libcaer_vendor
 * support sync with additional options for launch files
