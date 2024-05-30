@@ -100,6 +100,7 @@ Driver parameters (besides biases and other device-specific parameters):
 - ``master``: (defaults to True) whether the device is acting as synchronization master.
 - ``serial``: specifies serial number of camera to open (useful if you have multiple cameras connected). You can learn the serial number via ``lsusb -v -d 152a: | grep iSerial``, or just start the driver with the serial number left blank, and look at the console log.
 - ``statistics_print_interval``: time in seconds between statistics printouts.o
+- ``time_reset_delay``:  integer time in seconds to wait before hardware resetting the sensor time. Defaults to 2.
 
 ## How to use:
 
@@ -130,6 +131,13 @@ To visualize the events, run a ``renderer`` node from the
 ros2 launch event_camera_renderer renderer.launch.py
 ```
 The renderer node publishes an image that can be visualized with e.g. ``rqt_image_view``
+
+## Clock synchronized camera operation
+
+1) Connect the output sync of the master to the input sync of the slave
+2) When launching the driver, *first* launch the slave camera,  *second* launch the master. Pass the corresonding parameter ``master`` to both drivers, set to True for the master, set to False for the slave.
+3) Check the time synchronization with the ``sync_test`` tool from the ``event_camera_tools`` package. The ``base-stamp shift`` value of both cameras should be small, and the two values should agree to within less than 1ms when both sensors are non-idle, i.e. produce events at a reasonable rate.
+
 
 ## Performance comparison to the ROS1 driver
 
@@ -167,10 +175,10 @@ will be referred to as *sensor time*. Note that although initially *sensor time*
 
 The time stamps in the different messages refer to different clocks as follows:
 - IMU message ``header.stamp``: *sensor time*
-- image message ``header.stamp``: *sensor time*
+- APS image message ``header.stamp``: *sensor time*
 - EventPacket message:
   - ``header.stamp``: *host time* (host arrival time of first libcaer packet that was used to form the ROS message)
-  - ``time_base``: *sensor time* (sensor arrival time of first libcaer packet that was used for ROS message)
+  - ``time_base``: *sensor time* (sensor time of first event in ROS message)
   - event time stamps: *sensor time*
 
 Note that the ``header.stamp`` for EventPacket messages follows a different(!) convention than the header stamps for IMU and image messages. The reason is that ``time_base`` of the EventPacket message already has the *sensor time*, so ``header.stamp`` is used to capture the actual *host time*. This permits estimation of the clock drift between *sensor time* and *host time*, which in turn allows synchronization with data (captured from other sensors) that refers to *host time* only.
