@@ -74,6 +74,7 @@ private:
   void start();
   bool stop();
   void configureSensor();
+  void timeResetTimerExpired();
   void resetTime();
   void resetMsg(TimeMsg::ConstSharedPtr msg);
   std::shared_ptr<RosIntParameter> declareRosParameter(const std::shared_ptr<RosIntParameter> & rp);
@@ -126,6 +127,7 @@ private:
   rclcpp::Publisher<ImuMsg>::SharedPtr imuPub_;
   rclcpp::Publisher<TimeMsg>::SharedPtr resetPub_;
   rclcpp::Subscription<TimeMsg>::SharedPtr resetSub_;
+  rclcpp::TimerBase::SharedPtr timeResetTimer_;
   std::shared_ptr<camera_info_manager::CameraInfoManager> infoManager_;
   image_transport::CameraPublisher cameraPub_;
   sensor_msgs::msg::CameraInfo cameraInfoMsg_;

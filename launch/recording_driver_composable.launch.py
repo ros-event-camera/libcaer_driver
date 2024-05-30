@@ -43,6 +43,12 @@ def launch_setup(context, *args, **kwargs):
                         "encoding": "libcaer_cmp",
                         "statistics_print_interval": 2.0,
                         "event_message_time_threshold": 1.0e-3,
+                        "aps_exposure": 4000,
+                        "aps_frame_interval": 40000,
+                        "aps_enabled": False,
+                        "dvs_enabled": True,
+                        "auto_exposure_enabled": False,
+                        "auto_exposure_illumination": 127.0,
                     },
                 ],
                 extra_arguments=[{"use_intra_process_comms": True}],
@@ -53,7 +59,9 @@ def launch_setup(context, *args, **kwargs):
                 name="recorder",
                 parameters=[
                     {
-                        "topics": ["/event_camera/events"],
+                        "topics": ["/event_camera/events",
+                                   "/event_camera/imu",
+                                   "/event_camera/image_raw"],
                         "max_cache_size": 100 * 1024 * 1024,
                         "storage_id": "mcap",
                         "bag_name": LaunchConfig("bag"),

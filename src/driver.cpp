@@ -83,13 +83,13 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   isMaster_ = get_or<bool>("master", true);
   if (isMaster_) {
     if (!wrapper_->isMaster()) {
-      LOG_WARN("this device should be master, but the hardware says it's not!");
+      LOG_ERROR("this device should be master, but the hardware says it's not!");
     }
     resetPub_ =
       this->create_publisher<TimeMsg>("~/reset_timestamps", rclcpp::QoS(rclcpp::KeepLast(10)));
   } else {
     if (wrapper_->isMaster()) {
-      LOG_WARN("this device is configured as slave, but the hardware says it's not!");
+      LOG_ERROR("this device is configured as slave, but the hardware says it's a master!");
     }
 
     resetSub_ = this->create_subscription<TimeMsg>(
@@ -130,7 +130,17 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   cameraPub_ =
     image_transport::create_camera_publisher(this, "~/image_raw", rmw_qos_profile_sensor_data);
 
+  timeResetTimer_ = rclcpp::create_timer(
+    this, get_clock(), rclcpp::Duration(get_or<int>("time_reset_delay", 2), 0),
+    std::bind(&Driver::timeResetTimerExpired, this));
+
   start();
+}
+
+void Driver::timeResetTimerExpired()
+{
+  timeResetTimer_->cancel();
+  resetTime();
 }
 
 void Driver::resetMsg(TimeMsg::ConstSharedPtr msg)
@@ -148,12 +158,14 @@ void Driver::resetMsg(TimeMsg::ConstSharedPtr msg)
 void Driver::resetTime()
 {
   if (wrapper_) {
+    LOG_INFO("driver is resetting time stamps!");
     wrapper_->resetTimeStamps();
   }
 
   if (isMaster_) {
     // round the time to nearest microsecond so the event time stamps
     // are prettier
+    LOG_INFO("master is sending ROS time reset message to slave");
     rosBaseTime_ =
       rclcpp::Time((this->get_clock()->now().nanoseconds() / 1000ULL) * 1000ULL, RCL_SYSTEM_TIME);
     TimeMsg msg(rosBaseTime_);
@@ -205,8 +217,11 @@ std::shared_ptr<RosIntParameter> Driver::declareRosParameter(
     }
     vRos = this->declare_parameter(name, vRos, desc, true);
     const int32_t vClamped = rp->clamp(vRos);
-    rp->getParameter()->setValue(
-      rp->getField(), vClamped);  // libcaer_wrapper will use this for initialization
+    if (rp->getParameter()) {
+      rp->getParameter()->setValue(
+        rp->getField(), vClamped);  // libcaer_wrapper will use this for initialization
+    }
+
     if (vClamped != vRos) {
       LOG_INFO(name << " is outside limits, adjusted " << vRos << " -> " << vClamped);
       this->set_parameter(rclcpp::Parameter(name, vClamped));
@@ -430,8 +445,6 @@ void Driver::start()
   double printInterval;
   this->get_parameter_or("statistics_print_interval", printInterval, 1.0);
   wrapper_->setStatisticsInterval(printInterval);
-
-  resetTime();
 
   // ------ start camera, may get callbacks from then on
   wrapper_->startSensor();
