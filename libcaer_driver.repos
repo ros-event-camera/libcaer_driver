@@ -1,9 +1,0 @@
-repositories:
-  event_camera_msgs:
-    type: git
-    url: https://github.com/ros-event-camera/event_camera_msgs.git
-    version: master
-  libcaer:
-    type: git
-    url: https://github.com/ros-event-camera/libcaer.git
-    version: ros_event_camera
