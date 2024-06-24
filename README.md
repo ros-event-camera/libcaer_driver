@@ -37,37 +37,29 @@ Tested with the following hardware:
 
 There is some code in place for the Davis 346 but that one has never been tested
 (hardware not available) and thus will not work out of the box.
+Continuous integration testing covers ROS2 versions Humble and later.
 
+## Installation
 
-## How to build
-
-Prerequisites:
-
-Install ``vcs`` (ubuntu package ``python3-vcstool``).
-
-Make sure you have your ROS2 environment sourced such that the ROS_VERSION environment variable is set.
-
-Create a workspace (``libcaer_driver_ws``), clone this repo, and use ``vcs``
-to pull in the remaining dependencies:
+### From packages
 
 ```
-pkg=libcaer_driver
-mkdir -p ~/${pkg}_ws/src
-cd ~/${pkg}_ws
-git clone https://github.com/ros-event-camera/${pkg}.git src/${pkg}
-cd src
-vcs import < ${pkg}/${pkg}.repos
-cd ..
+sudo apt install ros-${ROS_DISTRO}-libcaer-driver
 ```
 
-Now build (the cmake flag to export compile commands is optional):
-```
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-. install/setup.bash
-```
+### From source
 
-This driver provides its own version of ``libcaer``, but you still need to copy the udev file into place
-and modify the group permissions:
+The build instructions follow the standard procedure for ROS2. Set the following shell variables:
+
+```bash
+repo=libcaer_driver
+url=https://github.com/ros-event-camera/${repo}.git
+```
+and follow the ROS2 build instructions [here](https://github.com/ros-misc-utilities/.github/blob/master/docs/build_ros_repository.md)
+
+Make sure to source your workspace's ``install/setup.bash`` afterwards.
+
+This driver provides its own version of ``libcaer`` (via the ``libcaer_vendor`` package), but you still need to copy the udev file into place and modify the group permissions:
 ```
 sudo cp src/libcaer/lib/udev/rules.d/65-inivation.rules /etc/udev/rules.d/
 sudo usermod -aG video ${USER}
