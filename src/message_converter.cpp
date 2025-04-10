@@ -150,6 +150,21 @@ size_t convert_polarity_packet_compressed(
   flush_state(&events, &currentMask, currentY, currentYHigh, currentPolarity);
   return (packet.getEventNumber());
 }
+using libcaer::events::FrameEvent;
+
+static std::string get_encoding(const FrameEvent::colorChannels & chan)
+{
+  switch (chan) {
+    case FrameEvent::colorChannels::GRAYSCALE:
+      return ("mono16");
+    case FrameEvent::colorChannels::RGB:
+      return ("rgb16");
+    case FrameEvent::colorChannels::RGBA:
+      return ("rgba16");  /// TODO(Bernd): test alpha channel
+    default:
+      BOMB_OUT("invalid number of channels for frame: " << static_cast<int>(chan));
+  }
+}
 
 static std::unique_ptr<sensor_msgs::msg::Image> convert_frame(
   const libcaer::events::FrameEvent & frame, const libcaer::events::FrameEventPacket & packet,
@@ -159,33 +174,15 @@ static std::unique_ptr<sensor_msgs::msg::Image> convert_frame(
   msg->height = frame.getLengthY();
   msg->width = frame.getLengthX();
   const uint16_t * data = frame.getPixelArrayUnsafe();
-  uint32_t numChan = static_cast<uint32_t>(frame.getChannelNumber());
-  switch (frame.getChannelNumber()) {
-    case libcaer::events::FrameEvent::colorChannels::GRAYSCALE:
-      msg->encoding = "mono8";
-      break;
-    case libcaer::events::FrameEvent::colorChannels::RGB:
-      msg->encoding = "rgb8";
-      break;
-    case libcaer::events::FrameEvent::colorChannels::RGBA:
-      msg->encoding = "rgba8";
-      break;
-    default:
-      BOMB_OUT("invalid number of channels for frame: " << numChan);
-  }
+  msg->encoding = get_encoding(frame.getChannelNumber());
   msg->header.stamp =
     baseTime + rclcpp::Duration(std::chrono::nanoseconds(frame.getTimestamp64(packet) * 1000));
   msg->header.frame_id = frameId;
-
-  const uint32_t stride = numChan * (msg->width);
-  msg->step = stride;
+  const uint32_t bytesPerChannel = sizeof(uint16_t);
+  const uint32_t numChan = static_cast<uint32_t>(frame.getChannelNumber());
+  msg->step = numChan * msg->width * bytesPerChannel;
   msg->data.resize(msg->step * msg->height);
-  for (uint32_t y = 0; y < msg->height * numChan; y++) {
-    for (uint32_t x = 0; x < msg->width; x++) {
-      // convert from 16bit to 8bit.
-      msg->data[y * (msg->width) + x] = data[y * (msg->width) + x] >> 8;
-    }
-  }
+  memcpy(&msg->data[0], data, msg->data.size());
   return (msg);
 }
 

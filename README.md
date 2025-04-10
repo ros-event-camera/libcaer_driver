@@ -29,45 +29,39 @@ The events can be decoded and displayed using the following ROS/ROS2 packages:
 Tested on the following platforms:
 
 - ROS2 Humble on Ubuntu 22.04 LTS
+- ROS2 Jazzy on Ubuntu 24.04 LTS
 
 Tested with the following hardware:
 
+- [Davis 346](https://inivation.com/wp-content/uploads/2019/08/DAVIS346.pdf)
 - [Davis 240C](https://inivation.com/wp-content/uploads/2019/08/DAVIS240.pdf)
 - [DvXplorer](https://shop.inivation.com/collections/dvxplorer)
 
-There is some code in place for the Davis 346 but that one has never been tested
-(hardware not available) and thus will not work out of the box.
+Continuous integration testing covers ROS2 versions Humble and later.
 
+Note: lead developer no longer has access to hardware for testing or developing.
 
-## How to build
+## Installation
 
-Prerequisites:
-
-Install ``vcs`` (ubuntu package ``python3-vcstool``).
-
-Make sure you have your ROS2 environment sourced such that the ROS_VERSION environment variable is set.
-
-Create a workspace (``libcaer_driver_ws``), clone this repo, and use ``vcs``
-to pull in the remaining dependencies:
+### From packages
 
 ```
-pkg=libcaer_driver
-mkdir -p ~/${pkg}_ws/src
-cd ~/${pkg}_ws
-git clone https://github.com/ros-event-camera/${pkg}.git src/${pkg}
-cd src
-vcs import < ${pkg}/${pkg}.repos
-cd ..
+sudo apt install ros-${ROS_DISTRO}-libcaer-driver
 ```
 
-Now build (the cmake flag to export compile commands is optional):
-```
-colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-. install/setup.bash
-```
+### From source
 
-This driver provides its own version of ``libcaer``, but you still need to copy the udev file into place
-and modify the group permissions:
+The build instructions follow the standard procedure for ROS2. Set the following shell variables:
+
+```bash
+repo=libcaer_driver
+url=https://github.com/ros-event-camera/${repo}.git
+```
+and follow the ROS2 build instructions [here](https://github.com/ros-misc-utilities/.github/blob/master/docs/build_ros_repository.md)
+
+Make sure to source your workspace's ``install/setup.bash`` afterwards.
+
+This driver provides its own version of ``libcaer`` (via the ``libcaer_vendor`` package), but you still need to copy the udev file into place and modify the group permissions:
 ```
 sudo cp src/libcaer/lib/udev/rules.d/65-inivation.rules /etc/udev/rules.d/
 sudo usermod -aG video ${USER}
@@ -110,6 +104,8 @@ ros2 launch libcaer_driver driver_node.launch.py device_type:=davis
 ```
 Edit ``driver_node.launch.py`` to set various parameters, or use ``rqt_reconfigure`` to modify the parameters on the fly.
 
+### Recording on ROS2 Humble and older
+
 For efficient recording of the events you need to run the
 driver and the recorder in the same address space using ROS2 composable
 nodes. For this you will need to install the
@@ -125,6 +121,19 @@ ros2 service call /start_recording std_srvs/srv/Trigger
 ```
 To stop the recording you have to kill (Ctrl-C) the recording driver.
 
+### Recording on ROS2 Jazzy and newer
+
+With Jazzy the rosbag framework got upgraded to provide composable recording. First launch
+the driver as a composable node, then load the recorder into the same container with
+the ``start_recording.launch.py`` script and unload it with ``stop_recording.py``:
+```
+ros2 launch libcaer_driver driver_composition.launch.py
+ros2 launch libcaer_driver start_recording.launch.py
+ros2 run libcaer_driver stop_recording.py
+```
+
+
+### Visualizing the events
 To visualize the events, run a ``renderer`` node from the
 [event_camera_renderer](https://github.com/ros-event-camera/event_camera_renderer) package:
 ```
