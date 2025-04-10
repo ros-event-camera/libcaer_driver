@@ -2,6 +2,13 @@
 Changelog for package libcaer_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* 16 bit APS image and color cam support
+* support for recording under Jazzy+
+* updated installation instructions
+* Contributors: Bernd Pfrommer
+
 1.0.3 (2024-05-30)
 ------------------
 * remove repos file, build only on recent distros
