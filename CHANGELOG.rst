@@ -2,8 +2,8 @@
 Changelog for package libcaer_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.5.0 (2025-04-10)
+------------------
 * 16 bit APS image and color cam support
 * support for recording under Jazzy+
 * updated installation instructions
