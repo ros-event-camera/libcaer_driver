@@ -102,6 +102,8 @@ ros2 launch libcaer_driver driver_node.launch.py device_type:=davis
 ```
 Edit ``driver_node.launch.py`` to set various parameters, or use ``rqt_reconfigure`` to modify the parameters on the fly.
 
+### Recording on ROS2 Humble and older
+
 For efficient recording of the events you need to run the
 driver and the recorder in the same address space using ROS2 composable
 nodes. For this you will need to install the
@@ -117,6 +119,19 @@ ros2 service call /start_recording std_srvs/srv/Trigger
 ```
 To stop the recording you have to kill (Ctrl-C) the recording driver.
 
+### Recording on ROS2 Jazzy and newer
+
+With Jazzy the rosbag framework got upgraded to provide composable recording. First launch
+the driver as a composable node, then load the recorder into the same container with
+the ``start_recording.launch.py`` script and unload it with ``stop_recording.py``:
+```
+ros2 launch libcaer_driver driver_composition.launch.py
+ros2 launch libcaer_driver start_recording.launch.py
+ros2 run libcaer_driver stop_recording.py
+```
+
+
+### Visualizing the events
 To visualize the events, run a ``renderer`` node from the
 [event_camera_renderer](https://github.com/ros-event-camera/event_camera_renderer) package:
 ```

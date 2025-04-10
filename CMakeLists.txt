@@ -69,6 +69,10 @@ install(TARGETS
   driver
   DESTINATION lib)
 
+install(PROGRAMS
+  src/stop_recording.py
+  DESTINATION lib/${PROJECT_NAME}/)
+
 install(DIRECTORY
   launch
   DESTINATION share/${PROJECT_NAME}/
