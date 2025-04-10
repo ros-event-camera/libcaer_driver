@@ -29,15 +29,17 @@ The events can be decoded and displayed using the following ROS/ROS2 packages:
 Tested on the following platforms:
 
 - ROS2 Humble on Ubuntu 22.04 LTS
+- ROS2 Jazzy on Ubuntu 24.04 LTS
 
 Tested with the following hardware:
 
+- [Davis 346](https://inivation.com/wp-content/uploads/2019/08/DAVIS346.pdf)
 - [Davis 240C](https://inivation.com/wp-content/uploads/2019/08/DAVIS240.pdf)
 - [DvXplorer](https://shop.inivation.com/collections/dvxplorer)
 
-There is some code in place for the Davis 346 but that one has never been tested
-(hardware not available) and thus will not work out of the box.
 Continuous integration testing covers ROS2 versions Humble and later.
+
+Note: lead developer no longer has access to hardware for testing or developing.
 
 ## Installation
 
