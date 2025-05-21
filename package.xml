@@ -20,7 +20,7 @@
   <depend>camera_info_manager</depend>
   <depend>sensor_msgs</depend>
   <depend>image_transport</depend>
-  
+
   <test_depend>ament_cmake_copyright</test_depend>
   <test_depend>ament_cmake_cppcheck</test_depend>
   <test_depend>ament_cmake_cpplint</test_depend>

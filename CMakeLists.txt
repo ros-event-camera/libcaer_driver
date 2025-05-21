@@ -44,8 +44,15 @@ find_package(libcaer REQUIRED)
 add_library(driver SHARED  src/libcaer_wrapper.cpp  src/driver.cpp
   src/message_converter.cpp
   src/device/device.cpp src/device/davis.cpp src/device/dvxplorer.cpp)
-ament_target_dependencies(driver rclcpp rclcpp_components
-  event_camera_msgs std_srvs camera_info_manager image_transport sensor_msgs)
+target_link_libraries(driver
+  rclcpp::rclcpp
+  rclcpp_components::component
+  ${sensor_msgs_TARGETS}
+  ${event_camera_msgs_TARGETS}
+  ${std_srvs_TARGETS}
+  camera_info_manager::camera_info_manager
+  image_transport::image_transport
+)
 target_include_directories(driver PUBLIC include)
 target_link_libraries(driver libcaer::caer)
 
