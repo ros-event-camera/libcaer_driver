@@ -2,8 +2,8 @@
 Changelog for package libcaer_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.5.1 (2025-05-22)
+------------------
 * stop using ament_target_dependencies
 * Contributors: Bernd Pfrommer
 
