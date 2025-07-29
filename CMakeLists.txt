@@ -38,6 +38,10 @@ find_package(image_transport)
 find_package(sensor_msgs)
 find_package(libcaer REQUIRED)
 
+if(${image_transport_VERSION} VERSION_GREATER_EQUAL "6.3.0")
+  add_definitions(-DIMAGE_TRANSPORT_USE_QOS)
+endif()
+
 #
 # --------- driver (composable component) -------------
 
