@@ -134,7 +134,13 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   const rmw_qos_profile_t qos = rmw_qos_profile_default;
 #endif
 
-  cameraPub_ = image_transport::create_camera_publisher(this, "~/image_raw", qos);
+  cameraPub_ = image_transport::create_camera_publisher(
+#ifdef IMAGE_TRANSPORT_USE_NODEINTERFACE
+    *this,
+#else
+    this,
+#endif
+    "~/image_raw", qos);
 
   timeResetTimer_ = rclcpp::create_timer(
     this, get_clock(), rclcpp::Duration(get_or<int>("time_reset_delay", 2), 0),
