@@ -50,6 +50,7 @@ def launch_setup(context, *args, **kwargs):
                         "aps_frame_mode": 1,
                         "auto_exposure_enabled": False,
                         "auto_exposure_illumination": 127.0,
+                        "time_reset_delay": 0,  # increase for syncing mult. cameras
                     },
                 ],
                 extra_arguments=[{"use_intra_process_comms": True}],
