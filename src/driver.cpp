@@ -539,8 +539,7 @@ void Driver::framePacketCallback(const libcaer::events::FrameEventPacket & packe
 {
   if (cameraPub_.getNumSubscribers() > 0) {
     std::vector<std::unique_ptr<sensor_msgs::msg::Image>> msgs;
-    (void)message_converter::convert_frame_packet(
-      &msgs, packet, cameraFrameId_, rosBaseTime_);
+    (void)message_converter::convert_frame_packet(&msgs, packet, cameraFrameId_, rosBaseTime_);
     for (auto & img : msgs) {
       sensor_msgs::msg::CameraInfo::UniquePtr cinfo(
         new sensor_msgs::msg::CameraInfo(cameraInfoMsg_));
@@ -571,8 +570,7 @@ void Driver::imu6PacketCallback(const libcaer::events::IMU6EventPacket & packet)
 {
   if (imuPub_->get_subscription_count() > 0) {
     std::vector<std::unique_ptr<sensor_msgs::msg::Imu>> msgs;
-    (void)message_converter::convert_imu6_packet(
-      &msgs, packet, imuFrameId_, rosBaseTime_);
+    (void)message_converter::convert_imu6_packet(&msgs, packet, imuFrameId_, rosBaseTime_);
     for (auto & msg : msgs) {
       imuPub_->publish(std::move(msg));
     }
