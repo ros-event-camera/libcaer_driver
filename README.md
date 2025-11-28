@@ -3,6 +3,10 @@
 A ROS2 driver for event based cameras using Inilab's Libcaer (Davis, DvXplorer).
 This driver is not written or supported by Inilabs.
 
+DO NOT UPDATE YOUR DEVICE FIRMWARE TO v1.0 IF YOU WANT TO USE THIS
+DRIVER! The camera will no longer work with libcaer after this irreversible
+update, see [this announcement](https://groups.google.com/g/dv-users/c/frmObComeOQ/m/0QtBCmY6AAAJ).
+
 ![banner image](images/davis_240C.png)
 
 This driver is intended to be a successor to the University of Zuerich
