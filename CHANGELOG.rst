@@ -2,8 +2,8 @@
 Changelog for package libcaer_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.5.4 (2026-04-26)
+------------------
 * fix rolling errors
 * updated license string in package.xml
 * warn of upgrade to firmware 1.0
