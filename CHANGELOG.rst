@@ -2,6 +2,24 @@
 Changelog for package libcaer_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Forthcoming
+-----------
+* fix rolling errors
+* updated license string in package.xml
+* warn of upgrade to firmware 1.0
+* updated README and github workflow
+* formatting fixes
+* Cmake extension to support clang compiler and lsp
+* fix doubled time in the imu (and frame) time_stamp
+  Instead of passing current rostime to the frame and imu Callbacks,
+  now correctly pass rosBaseTime\_ (rostime at startup) to both.
+  Then the sensor_time of the SDK_packet is added, resulting in the time visible
+  in the msgs.
+  note: the change to the frame callback is technically not tested, because
+  the hardware accessible to me does not support frame capture.
+  Signed-of-by: Erik Schlenzka
+* Contributors: Bernd Pfrommer, EschronS
+
 1.5.3 (2025-09-01)
 ------------------
 * support new image transport node interface
