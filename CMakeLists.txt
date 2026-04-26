@@ -20,13 +20,18 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+
+  # ignore the private-field-unused warning with clang
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_compile_options(-Wno-unused-private-field)
+  endif()
 endif()
 
 find_package(rclcpp REQUIRED)
@@ -51,7 +56,7 @@ endif()
 add_library(driver SHARED  src/libcaer_wrapper.cpp  src/driver.cpp
   src/message_converter.cpp
   src/device/device.cpp src/device/davis.cpp src/device/dvxplorer.cpp)
-target_include_directories(driver PUBLIC include)
+target_include_directories(driver PUBLIC include include/device)
 target_link_libraries(driver ${rclcpp_components_TARGETS}
   ${event_camera_msgs_TARGETS} ${sensor_msgs_TARGETS}
   ${std_srvs_TARGETS} libcaer::caer rclcpp::rclcpp

@@ -205,12 +205,12 @@ void LibcaerWrapper::processPacket(
     }
     case FRAME_EVENT: {
       const auto & fpacket = static_cast<const libcaer::events::FrameEventPacket &>(packet);
-      callbackHandler_->framePacketCallback(nsSinceEpoch, fpacket);
+      callbackHandler_->framePacketCallback(fpacket);
       break;
     }
     case IMU6_EVENT: {
       const auto & fpacket = static_cast<const libcaer::events::IMU6EventPacket &>(packet);
-      callbackHandler_->imu6PacketCallback(nsSinceEpoch, fpacket);
+      callbackHandler_->imu6PacketCallback(fpacket);
       break;
     }
     default:

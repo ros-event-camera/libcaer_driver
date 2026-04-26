@@ -32,9 +32,8 @@ public:
   virtual void deviceDisconnectedCallback() = 0;
   virtual void polarityPacketCallback(
     uint64_t t, const libcaer::events::PolarityEventPacket & packet) = 0;
-  virtual void framePacketCallback(
-    uint64_t t, const libcaer::events::FrameEventPacket & packet) = 0;
-  virtual void imu6PacketCallback(uint64_t t, const libcaer::events::IMU6EventPacket & packet) = 0;
+  virtual void framePacketCallback(const libcaer::events::FrameEventPacket & packet) = 0;
+  virtual void imu6PacketCallback(const libcaer::events::IMU6EventPacket & packet) = 0;
 };
 }  // namespace libcaer_driver
 #endif  // LIBCAER_DRIVER__CALLBACK_HANDLER_HPP_

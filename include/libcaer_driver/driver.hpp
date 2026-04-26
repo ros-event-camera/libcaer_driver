@@ -62,8 +62,8 @@ public:
   void deviceDisconnectedCallback() override;
   void polarityPacketCallback(
     uint64_t t, const libcaer::events::PolarityEventPacket & packet) override;
-  void framePacketCallback(uint64_t t, const libcaer::events::FrameEventPacket & packet) override;
-  void imu6PacketCallback(uint64_t t, const libcaer::events::IMU6EventPacket & packet) override;
+  void framePacketCallback(const libcaer::events::FrameEventPacket & packet) override;
+  void imu6PacketCallback(const libcaer::events::IMU6EventPacket & packet) override;
 
   // ---------------- end of inherited  -----------
 
