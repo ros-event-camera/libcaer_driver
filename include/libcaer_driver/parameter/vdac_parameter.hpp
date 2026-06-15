@@ -42,12 +42,14 @@ public:
   {
     std::vector<std::shared_ptr<RosParameter>> p;
     if (!isHidden()) {
-      p.push_back(std::make_shared<RosIntParameter>(
-        name_ + "_voltage", bias_.voltageValue, voltMin_, voltMax_, description_, pa,
-        FIELD_VOLTAGE));
-      p.push_back(std::make_shared<RosIntParameter>(
-        name_ + "_current", bias_.currentValue, currMin_, currMax_, description_, pa,
-        FIELD_CURRENT));
+      p.push_back(
+        std::make_shared<RosIntParameter>(
+          name_ + "_voltage", bias_.voltageValue, voltMin_, voltMax_, description_, pa,
+          FIELD_VOLTAGE));
+      p.push_back(
+        std::make_shared<RosIntParameter>(
+          name_ + "_current", bias_.currentValue, currMin_, currMax_, description_, pa,
+          FIELD_CURRENT));
     }
     return (p);
   }

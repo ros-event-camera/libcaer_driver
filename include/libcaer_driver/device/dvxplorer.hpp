@@ -25,7 +25,7 @@ class DvXplorer : public Device
 public:
   DvXplorer();
   void resetTimeStamps() override;
-  void setExposureTime(int32_t) override{};
+  void setExposureTime(int32_t) override {};
   int32_t getExposureTime() const override { return (10000); };
 };
 
