@@ -114,7 +114,7 @@ Driver::Driver(const rclcpp::NodeOptions & options)
 #ifdef IMAGE_TRANSPORT_USE_NODEINTERFACE
   infoManager_ = std::make_shared<camera_info_manager::CameraInfoManager>(
     get_node_base_interface(), get_node_services_interface(), get_node_logging_interface(),
-    get_name(), get_or<std::string>("camerainfo_url", ""));
+    get_name(), get_or<std::string>("camerainfo_url", ""), 10);
 #else
   infoManager_ = std::make_shared<camera_info_manager::CameraInfoManager>(
     this, get_name(), get_or<std::string>("camerainfo_url", ""));
