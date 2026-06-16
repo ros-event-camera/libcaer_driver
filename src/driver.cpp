@@ -70,14 +70,16 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   autoExposureEnabled_ = get_or<bool>("auto_exposure_enabled", false);
   LOG_INFO("auto exposure enabled: " << (autoExposureEnabled_ ? "True" : "False"));
   parameterMap_.insert(
-    {"auto_exposure_illumination", declareRosParameter(std::make_shared<RosIntParameter>(
-                                     "auto_exposure_illumination", 127, 0, 255,
-                                     "auto exposure target illumination", nullptr, FIELD_INT))});
+    {"auto_exposure_illumination", declareRosParameter(
+                                     std::make_shared<RosIntParameter>(
+                                       "auto_exposure_illumination", 127, 0, 255,
+                                       "auto exposure target illumination", nullptr, FIELD_INT))});
   targetIllumination_ = get_parameter("auto_exposure_illumination").as_int();
   parameterMap_.insert(
-    {"auto_exposure_hysteresis", declareRosParameter(std::make_shared<RosFloatParameter>(
-                                   "auto_exposure_hysteresis", 0.0625, 0, 0.5,
-                                   "auto exposure hysteresis", nullptr, FIELD_FLOAT))});
+    {"auto_exposure_hysteresis", declareRosParameter(
+                                   std::make_shared<RosFloatParameter>(
+                                     "auto_exposure_hysteresis", 0.0625, 0, 0.5,
+                                     "auto exposure hysteresis", nullptr, FIELD_FLOAT))});
   exposureHysteresis_ = get_parameter("auto_exposure_hysteresis").as_double();
 
   isMaster_ = get_or<bool>("master", true);
@@ -109,9 +111,14 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   LOG_INFO_FMT(
     "res: %d x %d,  camera frame id : %s, imu frame id: %s", dvsWidth_, dvsHeight_,
     cameraFrameId_.c_str(), imuFrameId_.c_str());
-
+#ifdef IMAGE_TRANSPORT_USE_NODEINTERFACE
+  infoManager_ = std::make_shared<camera_info_manager::CameraInfoManager>(
+    get_node_base_interface(), get_node_services_interface(), get_node_logging_interface(),
+    get_name(), get_or<std::string>("camerainfo_url", ""), 10);
+#else
   infoManager_ = std::make_shared<camera_info_manager::CameraInfoManager>(
     this, get_name(), get_or<std::string>("camerainfo_url", ""));
+#endif
 
   cameraInfoMsg_ = infoManager_->getCameraInfo();
   if (

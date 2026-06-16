@@ -50,11 +50,13 @@ public:
   {
     std::vector<std::shared_ptr<RosParameter>> p;
     if (!isHidden()) {
-      p.push_back(std::make_shared<RosIntParameter>(
-        name_ + "_coarse", bias_.coarseValue, coarseMin_, coarseMax_, description_, pa,
-        FIELD_COARSE));
-      p.push_back(std::make_shared<RosIntParameter>(
-        name_ + "_fine", bias_.fineValue, fineMin_, fineMax_, description_, pa, FIELD_FINE));
+      p.push_back(
+        std::make_shared<RosIntParameter>(
+          name_ + "_coarse", bias_.coarseValue, coarseMin_, coarseMax_, description_, pa,
+          FIELD_COARSE));
+      p.push_back(
+        std::make_shared<RosIntParameter>(
+          name_ + "_fine", bias_.fineValue, fineMin_, fineMax_, description_, pa, FIELD_FINE));
     }
     return (p);
   }
