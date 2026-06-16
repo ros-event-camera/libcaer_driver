@@ -2,8 +2,8 @@
 Changelog for package libcaer_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.5.6 (2026-06-16)
+------------------
 * fix formatting errors
 * adapt to new camerinfomanager constructor
 * Contributors: Bernd Pfrommer
