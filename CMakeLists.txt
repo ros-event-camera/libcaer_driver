@@ -109,7 +109,9 @@ if(BUILD_TESTING)
   ament_lint_cmake()
   # ament_pep257()   # not working on galactic / foxy
   ament_xmllint()
-  ament_clang_format(CONFIG_FILE .clang-format)
+  if(ament_cmake_clang_format_VERSION VERSION_GREATER_EQUAL 0.21.1)
+    ament_clang_format(CONFIG_FILE .clang-format)
+  endif()
 endif()
 
 ament_package()
