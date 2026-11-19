@@ -71,15 +71,15 @@ Driver::Driver(const rclcpp::NodeOptions & options)
   wrapper_->initializeParameters(this);
   autoExposureEnabled_ = get_or<bool>("auto_exposure_enabled", false);
   LOG_INFO("auto exposure enabled: " << (autoExposureEnabled_ ? "True" : "False"));
-  parameterMap_.insert(
-    {"auto_exposure_illumination", declareRosParameter(std::make_shared<RosIntParameter>(
-                                     "auto_exposure_illumination", 127, 0, 255,
-                                     "auto exposure target illumination", nullptr, FIELD_INT))});
+  auto aei_param = std::make_shared<RosIntParameter>(
+    "auto_exposure_illumination", 127, 0, 255, "auto exposure target illumination", nullptr,
+    FIELD_INT);
+  parameterMap_.insert({"auto_exposure_illumination", declareRosParameter(aei_param)});
   targetIllumination_ = get_parameter("auto_exposure_illumination").as_int();
-  parameterMap_.insert(
-    {"auto_exposure_hysteresis", declareRosParameter(std::make_shared<RosFloatParameter>(
-                                   "auto_exposure_hysteresis", 0.0625, 0, 0.5,
-                                   "auto exposure hysteresis", nullptr, FIELD_FLOAT))});
+  auto aep_param = std::make_shared<RosFloatParameter>(
+    "auto_exposure_hysteresis", 0.0625, 0, 0.5, "auto exposure hysteresis", nullptr, FIELD_FLOAT);
+
+  parameterMap_.insert({"auto_exposure_hysteresis", declareRosParameter(aep_param)});
   exposureHysteresis_ = get_parameter("auto_exposure_hysteresis").as_double();
 
   isMaster_ = get_or<bool>("master", true);
