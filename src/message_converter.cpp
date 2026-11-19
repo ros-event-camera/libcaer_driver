@@ -14,6 +14,7 @@
 // limitations under the License.
 
 #include <bitset>
+#include <cmath>
 #include <libcaer_driver/compression_tokens.hpp>
 #include <libcaer_driver/logging.hpp>
 #include <libcaer_driver/message_converter.hpp>
