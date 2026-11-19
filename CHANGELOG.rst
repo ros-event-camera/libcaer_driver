@@ -2,8 +2,8 @@
 Changelog for package libcaer_driver
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.5.7 (2026-11-19)
+------------------
 * reformat for resolute linter
 * added now-required includes
 * Contributors: Bernd Pfrommer
